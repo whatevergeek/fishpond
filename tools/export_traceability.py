@@ -6,6 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--build-dir", required=True)
 parser.add_argument("--manifest", required=True)
 parser.add_argument("--output", required=True)
+parser.add_argument("--results", help="optional JUnit result file from CTest")
 args = parser.parse_args()
 manifest = json.loads(pathlib.Path(args.manifest).read_text())
 listed = json.loads(subprocess.check_output(["ctest", "--test-dir", args.build_dir, "--show-only=json-v1"], text=True))
@@ -19,7 +20,16 @@ for item in manifest["tests"]:
     records.append(record)
     if item["required"] and state != "registered": failures.append(item["id"])
     if not item["required"] and state != "registered": pending.append(item["id"])
-report = {"schema_version": 1, "fixture_version": manifest["fixture_version"], "tests": records, "gate_passed": not failures, "failures": failures, "pending": pending}
+for record in records:
+    record["result"] = "not-run"
+if args.results:
+    import xml.etree.ElementTree as ET
+    for case in ET.parse(args.results).iter("testcase"):
+        if case.attrib.get("name") in tests:
+            next(r for r in records if r["id"] == case.attrib["name"])["result"] = "failed" if case.find("failure") is not None else "passed"
+for record in records:
+    if record["required"] and record["result"] != "passed": failures.append(record["id"])
+report = {"schema_version": 1, "fixture_version": manifest["fixture_version"], "tests": records, "gate_passed": not failures, "failures": sorted(set(failures)), "pending": pending, "required_external_evidence": {"juce_vst3_smoke": "not-run", "juce_au_smoke_macos": "not-run", "windows_runner": "not-run", "linux_runner": "not-run"}}
 pathlib.Path(args.output).write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps({"gate_passed": report["gate_passed"], "failures": failures, "pending": pending}))
 sys.exit(0 if report["gate_passed"] else 2)

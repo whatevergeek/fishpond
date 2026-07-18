@@ -55,12 +55,16 @@ implements and turns this corpus green; P0 evidence preserves their pending stat
 `.github/workflows/p0-build-contract.yml` runs the same configure/build/test
 contract on macOS, Windows, and Linux. It deliberately runs only the
 `BUILD-CONTRACT` label while the Sardine-compatible runtime does not exist.
-When P0.6 adds traceability enforcement, the workflow must also publish the
-full test manifest and fail if any required corpus ID remains disabled.
+P0.6 publishes the traceability manifest. The workflow must retain it as an
+artifact and fail if any required P0 ID is missing, disabled, or fails.
 
 Run `cmake --build --preset dev-macos --target traceability-report` to create
-`build/dev-macos/traceability.json`. It exits non-zero when a required test is
-missing or disabled; that is expected until the P0.1 runtime corpus is implemented.
+`build/dev-macos/traceability.json`. It exits non-zero when a required P0 test
+is missing or disabled. The P1 runtime corpus remains separately pending.
+
+The Phase 0 evidence package also records JUCE VST3/AU smoke and platform-runner
+status. Until those checks have run against an immutable JUCE artifact, they are
+`not-run` required evidence and P0 cannot close.
 
 ## Adding the first JUCE target
 

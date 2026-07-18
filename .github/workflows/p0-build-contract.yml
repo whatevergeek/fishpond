@@ -33,3 +33,13 @@ jobs:
         run: cmake --build --preset ${{ matrix.configure_preset }} --parallel
       - name: Run build-contract tests
         run: ctest --preset ${{ matrix.test_preset }}
+      - name: Export Phase 0 traceability evidence
+        run: cmake --build --preset ${{ matrix.configure_preset }} --target traceability-report
+      - name: Upload Phase 0 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-evidence-${{ matrix.os }}
+          path: |
+            build/${{ matrix.configure_preset }}/ctest-results.xml
+            build/${{ matrix.configure_preset }}/traceability.json
+          if-no-files-found: error
