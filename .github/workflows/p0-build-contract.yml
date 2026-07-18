@@ -1,0 +1,35 @@
+name: P0 build contract
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-contract:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            configure_preset: dev-macos
+            test_preset: p0-build-contract-macos
+          - os: windows-2022
+            configure_preset: dev-windows
+            test_preset: p0-build-contract-windows
+          - os: ubuntu-24.04
+            configure_preset: dev-linux
+            test_preset: p0-build-contract-linux
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset ${{ matrix.configure_preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.configure_preset }} --parallel
+      - name: Run build-contract tests
+        run: ctest --preset ${{ matrix.test_preset }}
