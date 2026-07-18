@@ -19,5 +19,6 @@ target_compile_definitions(fishpond_build_config INTERFACE
 )
 
 if(BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
     add_subdirectory(tests)
 endif()

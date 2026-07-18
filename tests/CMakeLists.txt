@@ -47,3 +47,12 @@ foreach(test_id IN LISTS FISHPOND_PENDING_SARDINE_COMPAT_TESTS)
         LABELS "P0;SARDINE-COMPAT;PENDING-RUNTIME"
     )
 endforeach()
+
+add_custom_target(traceability-report
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/export_traceability.py"
+        --build-dir "${PROJECT_BINARY_DIR}"
+        --manifest "${CMAKE_CURRENT_SOURCE_DIR}/traceability-manifest.json"
+        --output "${PROJECT_BINARY_DIR}/traceability.json"
+    DEPENDS fishpond_p0_build_contract fishpond_p0_foundations
+    VERBATIM
+)

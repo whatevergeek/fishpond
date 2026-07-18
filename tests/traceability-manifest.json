@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "fixture_version": "p0-foundations-1",
+  "tests": [
+    {"id":"UT_BuildContract_Compiles","phase":"P0","required":true},
+    {"id":"IT_FixtureInstrumentMidiAndAudio","phase":"P0","required":true},
+    {"id":"IT_FixtureEffectParameterAndStateFailures","phase":"P0","required":true},
+    {"id":"IT_FixtureScanLoadAndLayoutFailures","phase":"P0","required":true},
+    {"id":"RT_CallbackGuard","phase":"P0","required":true},
+    {"id":"RT_NoPythonOrUIInCallback","phase":"P0","required":true},
+    {"id":"IT_GraphCommandLifecycle","phase":"P0","required":true},
+    {"id":"UT_SardineCompat_PlayerAssignmentReplaces","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"UT_SardineCompat_PatternNotesAndLiterals","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"UT_SardineCompat_PeriodPattern","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"UT_SardineCompat_QuantizedReplacement","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"UT_SardineCompat_TargetNormalization","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"UT_SardineCompat_TargetCollision","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"UT_SardineCompat_InvalidValues","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"IT_SardineCompat_UnknownTargetIsolation","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"},
+    {"id":"IT_SardineCompat_SilenceAndPanic","phase":"P1","required":false,"pending_reason":"P1 runtime implementation"}
+  ]
+}

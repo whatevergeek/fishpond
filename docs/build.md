@@ -46,9 +46,9 @@ Use the matching `dev-windows`/`p0-build-contract-windows` or
 `dev-linux`/`p0-build-contract-linux` presets on those hosts.
 
 The build-contract preset runs only `BUILD-CONTRACT` tests. The nine
-`SARDINE-COMPAT;PENDING-RUNTIME` tests are deliberately disabled placeholders;
-they make the required IDs visible to CTest but must not be presented as a
-passing corpus. P0.6 will make disabled required tests a phase-gate failure.
+`SARDINE-COMPAT;PENDING-RUNTIME` tests are deliberately disabled contracts;
+they make the required IDs visible to CTest but are not passing evidence. P1.2
+implements and turns this corpus green; P0 evidence preserves their pending status.
 
 ## CI coverage
 
@@ -57,6 +57,10 @@ contract on macOS, Windows, and Linux. It deliberately runs only the
 `BUILD-CONTRACT` label while the Sardine-compatible runtime does not exist.
 When P0.6 adds traceability enforcement, the workflow must also publish the
 full test manifest and fail if any required corpus ID remains disabled.
+
+Run `cmake --build --preset dev-macos --target traceability-report` to create
+`build/dev-macos/traceability.json`. It exits non-zero when a required test is
+missing or disabled; that is expected until the P0.1 runtime corpus is implemented.
 
 ## Adding the first JUCE target
 

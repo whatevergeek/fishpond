@@ -5,6 +5,7 @@
 #include <vector>
 
 namespace {
+// Host-contract fixture only; this is intentionally not a JUCE/VST3 module.
 struct FixtureInstrument {
     bool prepared { false };
     bool malformedState { false };
