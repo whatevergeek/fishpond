@@ -34,7 +34,7 @@ if args.results:
             next(r for r in records if r["id"] == case.attrib["name"])["result"] = "failed" if case.find("failure") is not None else "passed"
 for record in records:
     if record["required"] and record["result"] != "passed": failures.append(record["id"])
-report = {"schema_version": 1, "fixture_version": manifest["fixture_version"], "tests": records, "gate_passed": not failures, "failures": sorted(set(failures)), "pending": pending, "required_external_evidence": {"juce_vst3_smoke": "not-run", "juce_au_smoke_macos": "not-run", "windows_runner": "not-run", "linux_runner": "not-run"}}
+report = {"schema_version": 1, "fixture_version": manifest["fixture_version"], "tests": records, "gate_passed": not failures, "failures": sorted(set(failures)), "pending": pending, "required_external_evidence": manifest.get("external_evidence", {"juce_vst3_smoke": {"status": "not-run"}, "juce_au_smoke_macos": {"status": "not-run"}, "windows_runner": {"status": "not-run"}, "linux_runner": {"status": "not-run"}})}
 pathlib.Path(args.output).write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps({"gate_passed": report["gate_passed"], "failures": failures, "pending": pending}))
 sys.exit(0 if report["gate_passed"] else 2)

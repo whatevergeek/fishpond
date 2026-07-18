@@ -62,9 +62,15 @@ Run `cmake --build --preset dev-macos --target traceability-report` to create
 `build/dev-macos/traceability.json`. It exits non-zero when a required P0 test
 is missing or disabled. The P1 runtime corpus remains separately pending.
 
-The Phase 0 evidence package also records JUCE VST3/AU smoke and platform-runner
-status. Until those checks have run against an immutable JUCE artifact, they are
-`not-run` required evidence and P0 cannot close.
+The Phase 0 evidence package records JUCE VST3/AU smoke and platform-runner
+status with the GitHub Actions run and artifact name that produced each result.
+The current published evidence is run
+[`29654991101`](https://github.com/whatevergeek/fishpond/actions/runs/29654991101):
+macOS, Windows, Linux, and the macOS JUCE VST3/AU smoke job passed. A future
+required external check remains `not-run` until its own run and artifact are
+recorded; it is never treated as passing merely because it is registered.
+The JUCE lifecycle fixture is also required on Windows and Linux; those new
+runner-specific checks remain `not-run` until their CI artifacts are published.
 
 ## Adding the first JUCE target
 

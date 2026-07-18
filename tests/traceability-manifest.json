@@ -1,6 +1,14 @@
 {
   "schema_version": 1,
   "fixture_version": "p0-foundations-1",
+  "external_evidence": {
+    "juce_vst3_smoke": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29654991101","artifact":"p0-juce-smoke-macos"},
+    "juce_au_smoke_macos": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29654991101","artifact":"p0-juce-smoke-macos"},
+    "windows_runner": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29654991101","artifact":"p0-evidence-windows-2022"},
+    "linux_runner": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29654991101","artifact":"p0-evidence-ubuntu-24.04"},
+    "juce_lifecycle_windows": {"status":"not-run"},
+    "juce_lifecycle_linux": {"status":"not-run"}
+  },
   "tests": [
     {"id":"UT_BuildContract_Compiles","phase":"P0","required":true},
     {"id":"IT_FixtureInstrumentMidiAndAudio","phase":"P0","required":true},

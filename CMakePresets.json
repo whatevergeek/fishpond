@@ -45,6 +45,41 @@
       }
     },
     {
+      "name": "juce-fixture-windows",
+      "displayName": "JUCE fixture (Windows)",
+      "inherits": "base",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "FISHPOND_FETCH_JUCE": "ON",
+        "FISHPOND_BUILD_JUCE_FIXTURES": "ON",
+        "BUILD_TESTING": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "juce-fixture-linux",
+      "displayName": "JUCE fixture (Linux)",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "FISHPOND_FETCH_JUCE": "ON",
+        "FISHPOND_BUILD_JUCE_FIXTURES": "ON",
+        "BUILD_TESTING": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "dev-windows",
       "displayName": "Development (Windows)",
       "inherits": "base",
@@ -76,6 +111,14 @@
     {
       "name": "juce-fixture-macos",
       "configurePreset": "juce-fixture-macos"
+    },
+    {
+      "name": "juce-fixture-windows",
+      "configurePreset": "juce-fixture-windows"
+    },
+    {
+      "name": "juce-fixture-linux",
+      "configurePreset": "juce-fixture-linux"
     },
     {
       "name": "dev-windows",

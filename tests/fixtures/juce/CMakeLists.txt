@@ -1,10 +1,15 @@
 # This target proves that the locked JUCE source can build a deterministic VST3
 # instrument fixture. It is deliberately outside the offline P0 contract path.
+set(FISHPOND_FIXTURE_FORMATS VST3)
+if(APPLE)
+    list(APPEND FISHPOND_FIXTURE_FORMATS AU)
+endif()
+
 juce_add_plugin(FishpondFixtureInstrument
     COMPANY_NAME Fishpond
     PLUGIN_MANUFACTURER_CODE Fshp
     PLUGIN_CODE Fpfi
-    FORMATS VST3 AU
+    FORMATS ${FISHPOND_FIXTURE_FORMATS}
     PRODUCT_NAME "Fishpond Fixture Instrument"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE

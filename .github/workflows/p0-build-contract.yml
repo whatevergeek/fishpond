@@ -63,3 +63,29 @@ jobs:
             build/juce-fixture-macos/tests/fixtures/juce/FishpondFixtureInstrument_artefacts/Debug/VST3/*.vst3
             build/juce-fixture-macos/tests/fixtures/juce/FishpondFixtureInstrument_artefacts/Debug/AU/*.component
           if-no-files-found: error
+
+  juce-lifecycle:
+    name: ${{ matrix.os }} JUCE lifecycle
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            preset: juce-fixture-windows
+          - os: ubuntu-24.04
+            preset: juce-fixture-linux
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure locked JUCE fixture
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Run JUCE lifecycle spike
+        run: cmake --build --preset ${{ matrix.preset }} --target run-juce-lifecycle-spike
+      - name: Build VST3 fixture artifact
+        run: cmake --build --preset ${{ matrix.preset }} --target FishpondFixtureInstrument_VST3
+      - name: Upload JUCE lifecycle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-juce-lifecycle-${{ matrix.os }}
+          path: build/${{ matrix.preset }}/tests/fixtures/juce/FishpondFixtureInstrument_artefacts/**/VST3/*.vst3
+          if-no-files-found: error
