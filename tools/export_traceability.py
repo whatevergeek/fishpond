@@ -7,9 +7,14 @@ parser.add_argument("--build-dir", required=True)
 parser.add_argument("--manifest", required=True)
 parser.add_argument("--output", required=True)
 parser.add_argument("--results", help="optional JUnit result file from CTest")
+parser.add_argument("--configuration", help="CTest configuration for multi-config generators")
 args = parser.parse_args()
 manifest = json.loads(pathlib.Path(args.manifest).read_text())
-listed = json.loads(subprocess.check_output(["ctest", "--test-dir", args.build_dir, "--show-only=json-v1"], text=True))
+ctest_list_command = ["ctest", "--test-dir", args.build_dir]
+if args.configuration:
+    ctest_list_command.extend(["-C", args.configuration])
+ctest_list_command.append("--show-only=json-v1")
+listed = json.loads(subprocess.check_output(ctest_list_command, text=True))
 tests = {item["name"]: item for item in listed["tests"]}
 records, failures, pending = [], [], []
 for item in manifest["tests"]:

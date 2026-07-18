@@ -48,13 +48,22 @@ foreach(test_id IN LISTS FISHPOND_PENDING_SARDINE_COMPAT_TESTS)
     )
 endforeach()
 
+set(FISHPOND_CTEST_CONFIG_ARGUMENTS)
+set(FISHPOND_TRACEABILITY_CONFIG_ARGUMENTS)
+if(CMAKE_CONFIGURATION_TYPES)
+    # Visual Studio/Xcode keep test metadata beneath the selected configuration.
+    list(APPEND FISHPOND_CTEST_CONFIG_ARGUMENTS -C "$<CONFIG>")
+    list(APPEND FISHPOND_TRACEABILITY_CONFIG_ARGUMENTS --configuration "$<CONFIG>")
+endif()
+
 add_custom_target(traceability-report
-    COMMAND "${CMAKE_CTEST_COMMAND}" --test-dir "${PROJECT_BINARY_DIR}" --output-junit "${PROJECT_BINARY_DIR}/ctest-results.xml" -L "P0"
+    COMMAND "${CMAKE_CTEST_COMMAND}" --test-dir "${PROJECT_BINARY_DIR}" ${FISHPOND_CTEST_CONFIG_ARGUMENTS} --output-junit "${PROJECT_BINARY_DIR}/ctest-results.xml" -L "P0"
     COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/export_traceability.py"
         --build-dir "${PROJECT_BINARY_DIR}"
         --manifest "${CMAKE_CURRENT_SOURCE_DIR}/traceability-manifest.json"
         --output "${PROJECT_BINARY_DIR}/traceability.json"
         --results "${PROJECT_BINARY_DIR}/ctest-results.xml"
+        ${FISHPOND_TRACEABILITY_CONFIG_ARGUMENTS}
     DEPENDS fishpond_p0_build_contract fishpond_p0_foundations
     VERBATIM
 )
