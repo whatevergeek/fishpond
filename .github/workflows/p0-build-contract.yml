@@ -43,3 +43,23 @@ jobs:
             build/${{ matrix.configure_preset }}/ctest-results.xml
             build/${{ matrix.configure_preset }}/traceability.json
           if-no-files-found: error
+
+  juce-smoke-macos:
+    name: macOS JUCE VST3/AU smoke
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure locked JUCE fixture
+        run: cmake --preset juce-fixture-macos
+      - name: Run JUCE lifecycle spike
+        run: cmake --build --preset juce-fixture-macos --target run-juce-lifecycle-spike
+      - name: Build VST3 and AU fixture artifacts
+        run: cmake --build --preset juce-fixture-macos --target FishpondFixtureInstrument_VST3 FishpondFixtureInstrument_AU
+      - name: Upload JUCE smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-juce-smoke-macos
+          path: |
+            build/juce-fixture-macos/tests/fixtures/juce/FishpondFixtureInstrument_artefacts/Debug/VST3/*.vst3
+            build/juce-fixture-macos/tests/fixtures/juce/FishpondFixtureInstrument_artefacts/Debug/AU/*.component
+          if-no-files-found: error
