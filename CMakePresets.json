@@ -28,6 +28,23 @@
       }
     },
     {
+      "name": "juce-fixture-macos",
+      "displayName": "JUCE fixture (macOS)",
+      "inherits": "base",
+      "generator": "Xcode",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "FISHPOND_FETCH_JUCE": "ON",
+        "FISHPOND_BUILD_JUCE_FIXTURES": "ON",
+        "BUILD_TESTING": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
       "name": "dev-windows",
       "displayName": "Development (Windows)",
       "inherits": "base",
@@ -55,6 +72,10 @@
     {
       "name": "dev-macos",
       "configurePreset": "dev-macos"
+    },
+    {
+      "name": "juce-fixture-macos",
+      "configurePreset": "juce-fixture-macos"
     },
     {
       "name": "dev-windows",

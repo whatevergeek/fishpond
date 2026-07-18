@@ -3,6 +3,7 @@ include_guard(GLOBAL)
 # Pinned framework provenance. This skeleton does not fetch dependencies by
 # default, so its configure/build smoke test is deterministic and offline.
 set(FISHPOND_JUCE_VERSION "8.0.13" CACHE STRING "Approved JUCE release tag")
+set(FISHPOND_JUCE_COMMIT "7c9d3783b127263d72bb65fe0a7e2dc8a02a7ac2" CACHE STRING "Verified JUCE 8.0.13 commit")
 set(FISHPOND_CPYTHON_VERSION "3.12.13" CACHE STRING "Approved embedded CPython release")
 set(FISHPOND_JUCE_SOURCE_DIR "" CACHE PATH "Optional local JUCE source tree")
 option(FISHPOND_FETCH_JUCE "Fetch the pinned JUCE source when a host target needs it" OFF)
@@ -25,7 +26,7 @@ function(fishpond_require_juce)
     include(FetchContent)
     FetchContent_Declare(juce
         GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-        GIT_TAG ${FISHPOND_JUCE_VERSION}
+        GIT_TAG ${FISHPOND_JUCE_COMMIT}
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(juce)
