@@ -89,8 +89,8 @@ jobs:
         if: runner.os == 'Linux'
         run: >-
           cmake --preset ${{ matrix.preset }}
-          -DCMAKE_C_FLAGS="$(pkg-config --cflags gtk+-x11-3.0)"
-          -DCMAKE_CXX_FLAGS="$(pkg-config --cflags gtk+-x11-3.0)"
+          -DCMAKE_C_FLAGS="$(pkg-config --cflags webkit2gtk-4.1 gtk+-x11-3.0)"
+          -DCMAKE_CXX_FLAGS="$(pkg-config --cflags webkit2gtk-4.1 gtk+-x11-3.0)"
       - name: Configure locked JUCE fixture (non-Linux)
         if: runner.os != 'Linux'
         run: cmake --preset ${{ matrix.preset }}
