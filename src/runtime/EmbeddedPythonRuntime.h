@@ -11,6 +11,9 @@ struct PythonEvaluationResult {
 class EmbeddedPythonRuntime {
 public:
     EmbeddedPythonRuntime();
+    ~EmbeddedPythonRuntime();
+    EmbeddedPythonRuntime(const EmbeddedPythonRuntime&) = delete;
+    EmbeddedPythonRuntime& operator=(const EmbeddedPythonRuntime&) = delete;
     bool ready() const { return isReady; }
     const std::string& lastDiagnostic() const { return diagnostic; }
     PythonEvaluationResult evaluate(const std::string& source);

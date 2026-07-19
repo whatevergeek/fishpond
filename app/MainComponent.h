@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioShell.h"
+#include "runtime/PythonExecutionWorker.h"
 #include "runtime/Runtime.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -8,7 +9,8 @@
 
 class MainComponent final : public juce::Component,
                             private juce::AudioIODeviceCallback,
-                            private juce::KeyListener {
+                            private juce::KeyListener,
+                            private juce::Timer {
 public:
     MainComponent();
     ~MainComponent() override;
@@ -18,6 +20,7 @@ public:
 private:
     bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
     void executeEditorText(const juce::String& source);
+    void timerCallback() override;
     juce::String currentCodeBlock() const;
     juce::String currentLine() const;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
@@ -28,6 +31,7 @@ private:
 
     fishpond::AudioShell audioShell;
     fishpond::Runtime runtime;
+    fishpond::PythonExecutionWorker pythonWorker;
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;

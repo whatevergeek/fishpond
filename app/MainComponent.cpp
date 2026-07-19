@@ -35,6 +35,7 @@ MainComponent::MainComponent()
 
     deviceStatus.setText("Audio engine stopped", juce::dontSendNotification);
     deviceManager.addAudioCallback(this);
+    startTimerHz(30);
     addAndMakeVisible(tabs);
     addAndMakeVisible(deviceStatus);
     addAndMakeVisible(startStopButton);
@@ -44,6 +45,7 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    stopTimer();
     liveCodingEditor.removeKeyListener(this);
     deviceManager.removeAudioCallback(this);
     deviceManager.closeAudioDevice();
@@ -65,8 +67,32 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component*)
 
 void MainComponent::executeEditorText(const juce::String& source)
 {
-    const auto result = runtime.evaluateEditorText(source.toStdString());
-    diagnostics.setText(result.diagnostic, juce::dontSendNotification);
+    if (source.trim().isEmpty()) {
+        diagnostics.setText("Nothing to evaluate", juce::dontSendNotification);
+        return;
+    }
+    if (! pythonWorker.submit(source.toStdString())) {
+        diagnostics.setText("FP_RUNTIME_BUSY: evaluation queue is full", juce::dontSendNotification);
+        return;
+    }
+    diagnostics.setText("Evaluating on the Python runtime thread...", juce::dontSendNotification);
+}
+
+void MainComponent::timerCallback()
+{
+    fishpond::PythonExecutionCompletion completion;
+    while (pythonWorker.tryTakeCompletion(completion)) {
+        if (! completion.result.accepted) {
+            diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
+            continue;
+        }
+        if (completion.source.find(">> n(") != std::string::npos) {
+            const auto validation = runtime.evaluateEditorText(completion.source);
+            diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
+        } else {
+            diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
+        }
+    }
 }
 
 juce::String MainComponent::currentCodeBlock() const

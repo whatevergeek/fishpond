@@ -34,10 +34,34 @@ EmbeddedPythonRuntime::EmbeddedPythonRuntime()
     globals = PyDict_New();
     if (globals != nullptr) {
         PyDict_SetItemString(static_cast<PyObject*>(globals), "__builtins__", PyEval_GetBuiltins());
-        isReady = true;
+        PyObject* bootstrapResult = PyRun_StringFlags(
+            "class _FishpondPlayer:\n"
+            "    def __rshift__(self, value):\n"
+            "        return value\n"
+            "def n(*notes, **keywords):\n"
+            "    return (notes, keywords)\n"
+            "Pa = _FishpondPlayer()\n",
+            Py_file_input, static_cast<PyObject*>(globals), static_cast<PyObject*>(globals), nullptr);
+        if (bootstrapResult != nullptr) {
+            Py_DECREF(bootstrapResult);
+            isReady = true;
+        } else {
+            diagnostic = pythonError();
+            Py_CLEAR(globals);
+        }
     } else {
         diagnostic = pythonError();
     }
+    PyGILState_Release(state);
+}
+
+EmbeddedPythonRuntime::~EmbeddedPythonRuntime()
+{
+    if (globals == nullptr || ! Py_IsInitialized())
+        return;
+    const auto state = PyGILState_Ensure();
+    Py_DECREF(static_cast<PyObject*>(globals));
+    globals = nullptr;
     PyGILState_Release(state);
 }
 

@@ -64,9 +64,12 @@ target_include_directories(fishpond_p1_runtime PRIVATE "${PROJECT_SOURCE_DIR}/sr
 if(TARGET fishpond_embedded_python)
     add_executable(fishpond_p1_embedded_python runtime/embedded_python.cpp)
     target_link_libraries(fishpond_p1_embedded_python PRIVATE fishpond_embedded_python)
+    add_executable(fishpond_p1_python_worker runtime/python_execution_worker.cpp)
+    target_link_libraries(fishpond_p1_python_worker PRIVATE fishpond_embedded_python)
     add_test(NAME IT_EmbeddedPythonPersistentNamespace COMMAND fishpond_p1_embedded_python persistent)
     add_test(NAME IT_EmbeddedPythonErrorIsolation COMMAND fishpond_p1_embedded_python error-isolation)
-    set_tests_properties(IT_EmbeddedPythonPersistentNamespace IT_EmbeddedPythonErrorIsolation
+    add_test(NAME IT_PythonExecutionWorkerOffCallerThread COMMAND fishpond_p1_python_worker)
+    set_tests_properties(IT_EmbeddedPythonPersistentNamespace IT_EmbeddedPythonErrorIsolation IT_PythonExecutionWorkerOffCallerThread
         PROPERTIES LABELS "IT;P1;FR-012;FR-013")
 endif()
 

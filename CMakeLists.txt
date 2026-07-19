@@ -23,7 +23,10 @@ target_compile_definitions(fishpond_build_config INTERFACE
 
 if(FISHPOND_ENABLE_EMBEDDED_PYTHON)
     find_package(Python3 3.12.13 EXACT REQUIRED COMPONENTS Development.Embed)
-    add_library(fishpond_embedded_python src/runtime/EmbeddedPythonRuntime.cpp)
+    add_library(fishpond_embedded_python
+        src/runtime/EmbeddedPythonRuntime.cpp
+        src/runtime/PythonExecutionWorker.cpp
+    )
     target_include_directories(fishpond_embedded_python PUBLIC "${PROJECT_SOURCE_DIR}/src")
     target_link_libraries(fishpond_embedded_python PUBLIC fishpond_build_config Python3::Python)
 endif()
