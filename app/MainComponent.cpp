@@ -45,10 +45,10 @@ MainComponent::MainComponent()
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
-    diagnostics.setText("Ready. Load an instrument in Mixer, then evaluate a pattern.", juce::dontSendNotification);
+    diagnostics.setText("Ready. Load an instrument in Instruments, then evaluate a pattern.", juce::dontSendNotification);
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(diagnostics);
-    mixerPlaceholder.setText("Mixer - two instrument slots", juce::dontSendNotification);
+    mixerPlaceholder.setText("Instruments - two instrument slots", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
     chooseBassButton.onClick = [this] {
        #if JUCE_MAC
@@ -109,7 +109,7 @@ MainComponent::MainComponent()
     mixerPlaceholder.addAndMakeVisible(leadChannelName);
     mixerPlaceholder.addAndMakeVisible(renameLeadButton);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
-    tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);
+    tabs.addTab("Instruments", juce::Colours::darkgrey, &mixerPlaceholder, false);
 
     startStopButton.onClick = [this] {
         if (audioShell.state() == fishpond::AudioShellState::running) {

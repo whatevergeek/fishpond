@@ -4,7 +4,7 @@ Run this on macOS with a supported instrument `.vst3` bundle that is not the
 Fishpond fixture. This is a controlled single-plugin load, not catalogue scan
 coverage.
 
-1. Launch Fishpond, open **Mixer**, and click **Load VST3...** while audio is
+1. Launch Fishpond, open **Instruments**, and click **Load Inst 01 VST3...** while audio is
    stopped. Select the instrument bundle and confirm the status reads
    `Bass VST3 ready: …`.
 2. Start audio at 48 kHz stereo. In Live Coding, execute each of these lines
