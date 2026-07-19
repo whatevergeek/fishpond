@@ -2,6 +2,7 @@
 
 #include <string>
 #include <optional>
+#include <vector>
 
 namespace fishpond {
 struct EvaluationResult {
@@ -13,6 +14,7 @@ class Runtime {
 public:
     EvaluationResult evaluateEditorText(const std::string& source, bool bassReady = false) const;
     std::optional<int> firstNoteFromEditorText(const std::string& source) const;
+    std::vector<int> notesFromEditorText(const std::string& source) const;
     bool playerReplacementContract() const;
     bool patternContract() const;
     bool periodContract() const;

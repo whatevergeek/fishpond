@@ -175,6 +175,14 @@ std::optional<int> Runtime::firstNoteFromEditorText(const std::string& source) c
     return notes.empty() ? std::nullopt : std::optional<int>(notes.front());
 }
 
+std::vector<int> Runtime::notesFromEditorText(const std::string& source) const
+{
+    const auto firstQuote = source.find('"');
+    const auto secondQuote = firstQuote == std::string::npos ? std::string::npos : source.find('"', firstQuote + 1);
+    return firstQuote == std::string::npos || secondQuote == std::string::npos
+        ? std::vector<int> {} : parseNotes(source.substr(firstQuote + 1, secondQuote - firstQuote - 1));
+}
+
 bool Runtime::playerReplacementContract() const
 {
     Engine engine; engine.createChannel("Bass");

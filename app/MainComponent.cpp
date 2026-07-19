@@ -104,12 +104,20 @@ void MainComponent::timerCallback()
             const auto bassReady = bass != nullptr && bass->state() == fishpond::SingleChannelState::ready;
             const auto validation = runtime.evaluateEditorText(completion.source, bassReady);
             if (validation.accepted) {
-                const auto note = runtime.firstNoteFromEditorText(completion.source);
-                const auto outcome = note ? noteProducer.schedule({ 1, renderFrame.load() + 512, 24'000,
-                                                                    static_cast<std::uint8_t>(*note), 100, 1 })
-                                          : fishpond::NoteSubmitResult::invalid;
-                diagnostics.setText(outcome == fishpond::NoteSubmitResult::queued ? validation.diagnostic
-                                    : "FP_EVENT_QUEUE_FULL: Bass note was not scheduled", juce::dontSendNotification);
+                const auto notes = runtime.notesFromEditorText(completion.source);
+                auto targetFrame = renderFrame.load() + 512;
+                auto scheduled = 0;
+                for (const auto note : notes) {
+                    if (noteProducer.schedule({ 1, targetFrame, 12'000, static_cast<std::uint8_t>(note), 100, 1 })
+                        != fishpond::NoteSubmitResult::queued)
+                        break;
+                    ++scheduled;
+                    targetFrame += 12'000; // p=0.5 at 120 BPM / 48 kHz
+                }
+                diagnostics.setText(scheduled == static_cast<int>(notes.size())
+                                        ? "Scheduled " + juce::String(scheduled) + " Bass notes"
+                                        : "FP_EVENT_QUEUE_FULL: Bass pattern was only partly scheduled",
+                                    juce::dontSendNotification);
             } else
                 diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
         } else {
