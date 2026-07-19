@@ -4,15 +4,13 @@ MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true);
     liveCodingEditor.setText("# Select code and press Execute selection\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setText("Ready. Add an instrument channel in P1.4 before notes can be heard.", juce::dontSendNotification);
-    executeButton.onClick = [this] {
-        const auto selection = liveCodingEditor.getHighlightedText();
-        const auto source = selection.isNotEmpty() ? selection : liveCodingEditor.getText();
-        const auto result = runtime.evaluateEditorText(source.toStdString());
-        diagnostics.setText(result.diagnostic, juce::dontSendNotification);
-    };
+    executeButton.setButtonText("Execute (Cmd+Return)");
+    executeButton.setTooltip("Execute selection, or the editor when nothing is selected (Cmd+Return)");
+    executeButton.onClick = [this] { executeEditorText(); };
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(executeButton);
     liveCodingPanel.addAndMakeVisible(diagnostics);
@@ -46,8 +44,32 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    liveCodingEditor.removeKeyListener(this);
     deviceManager.removeAudioCallback(this);
     deviceManager.closeAudioDevice();
+}
+
+bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component*)
+{
+    const auto& modifiers = key.getModifiers();
+   #if JUCE_MAC
+    const bool executeModifier = modifiers.isCommandDown();
+   #else
+    const bool executeModifier = modifiers.isCtrlDown();
+   #endif
+    if (executeModifier && key.getKeyCode() == juce::KeyPress::returnKey) {
+        executeEditorText();
+        return true;
+    }
+    return false;
+}
+
+void MainComponent::executeEditorText()
+{
+    const auto selection = liveCodingEditor.getHighlightedText();
+    const auto source = selection.isNotEmpty() ? selection : liveCodingEditor.getText();
+    const auto result = runtime.evaluateEditorText(source.toStdString());
+    diagnostics.setText(result.diagnostic, juce::dontSendNotification);
 }
 
 void MainComponent::resized()

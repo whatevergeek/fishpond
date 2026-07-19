@@ -114,8 +114,10 @@ open build/app-macos/app/FishpondApp_artefacts/Debug/Fishpond.app
 ```
 
 At this P1.1 stage, the app verifies the window, tab navigation, audio-device
-status, and start/stop lifecycle. The Live Coding editor is intentionally not
-executable yet; P1.2 introduces the runtime syntax.
+status, and start/stop lifecycle. P1.2 adds editor evaluation: select text and
+press **Cmd+Return** on macOS (or **Ctrl+Return** on Windows/Linux), or use the
+Execute button. A ready instrument channel is still required before notes can
+be heard.
 
 On macOS, build the real VST3 fixture with `cmake --preset juce-fixture-macos`
 then `cmake --build --preset juce-fixture-macos --target FishpondFixtureInstrument_VST3`.

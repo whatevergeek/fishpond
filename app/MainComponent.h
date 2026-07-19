@@ -6,7 +6,9 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 
-class MainComponent final : public juce::Component, private juce::AudioIODeviceCallback {
+class MainComponent final : public juce::Component,
+                            private juce::AudioIODeviceCallback,
+                            private juce::KeyListener {
 public:
     MainComponent();
     ~MainComponent() override;
@@ -14,6 +16,8 @@ public:
     void resized() override;
 
 private:
+    bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
+    void executeEditorText();
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
     void audioDeviceIOCallbackWithContext(const float* const*, int, float* const* output,
