@@ -12,16 +12,20 @@ bool FixtureInstrument::isBusesLayoutSupported(const BusesLayout& layouts) const
 void FixtureInstrument::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     buffer.clear();
-    for (const auto metadata : midi)
-        if (metadata.getMessage().isNoteOn()) {
+    for (const auto metadata : midi) {
+        const auto message = metadata.getMessage();
+        if (message.isNoteOn()) {
             phase = 0.0;
-            frequency = 440.0 * std::pow(2.0, (metadata.getMessage().getNoteNumber() - 69) / 12.0);
-            remainingToneSamples = static_cast<int>(sampleRate * 0.25);
-        }
+            frequency = 440.0 * std::pow(2.0, (message.getNoteNumber() - 69) / 12.0);
+            amplitude = 0.15f * message.getVelocity();
+            remainingToneSamples = static_cast<int>(sampleRate * 2.0);
+        } else if (message.isNoteOff())
+            remainingToneSamples = 0;
+    }
     if (! prepared || released)
         return;
     for (int sample = 0; sample < buffer.getNumSamples() && remainingToneSamples > 0; ++sample) {
-        const auto value = static_cast<float>(0.15 * std::sin(phase));
+        const auto value = static_cast<float>(amplitude * std::sin(phase));
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
             buffer.setSample(channel, sample, value);
         phase += juce::MathConstants<double>::twoPi * frequency / sampleRate;

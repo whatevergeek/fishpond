@@ -34,5 +34,6 @@ private:
     double sampleRate = 48'000.0;
     double phase = 0.0;
     double frequency = 440.0;
+    float amplitude = 0.15f;
     int remainingToneSamples = 0;
 };
