@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <atomic>
+#include <array>
 #include <vector>
 
 class MainComponent final : public juce::Component,
@@ -28,8 +29,10 @@ public:
 private:
     void executeEditorText(const juce::String& source);
     void loadBassBundle(const juce::File& bundle);
+    void loadLeadBundle(const juce::File& bundle);
     void openBassEditor();
     void renameBassChannel();
+    void renameLeadChannel();
     void timerCallback() override;
     void updateSchedulerTiming();
     juce::String currentLine() const;
@@ -50,10 +53,13 @@ private:
     std::atomic<double> activeSampleRate { 48'000.0 };
     std::atomic<std::uint32_t> activeBlockSize { 512 };
     std::uint64_t observedPanic {};
-    juce::MidiBuffer bassMidi;
-    std::unique_ptr<fishpond::ControlledVST3Bass> bass;
+    std::array<juce::MidiBuffer, 2> channelMidi;
+    std::array<juce::AudioBuffer<float>, 2> channelAudio;
+    std::unique_ptr<fishpond::HostedInstrument> bass;
+    std::unique_ptr<fishpond::HostedInstrument> lead;
     fishpond::ChannelRegistry channels;
     std::uint64_t bassChannelId {};
+    std::uint64_t leadChannelId {};
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
@@ -65,7 +71,12 @@ private:
     juce::TextButton openBassEditorButton { "Open plugin UI" };
     juce::TextEditor bassChannelName { "Bass" };
     juce::TextButton renameBassButton { "Rename" };
+    juce::TextButton loadLeadButton { "Load Lead fixture" };
+    juce::TextButton chooseLeadButton { "Load Lead VST3..." };
+    juce::TextEditor leadChannelName { "Lead" };
+    juce::TextButton renameLeadButton { "Rename" };
     std::unique_ptr<juce::FileChooser> bassPluginChooser;
+    std::unique_ptr<juce::FileChooser> leadPluginChooser;
     std::unique_ptr<juce::DocumentWindow> bassEditorWindow;
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };

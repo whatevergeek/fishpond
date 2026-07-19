@@ -21,6 +21,7 @@ class AsyncBassScheduler {
 public:
     struct Pattern {
         std::size_t playerIndex {};
+        std::uint64_t channelId { 1 };
         std::vector<int> notes;
         double periodBeats {};
         std::uint8_t velocity { 100 };
@@ -52,7 +53,7 @@ public:
     void replace(std::size_t playerIndex, std::vector<int> notes, double periodBeats, std::uint8_t velocity,
                  double durationBeats)
     {
-        replaceAll({ { playerIndex, std::move(notes), periodBeats, velocity, durationBeats } });
+        replaceAll({ { playerIndex, 1, std::move(notes), periodBeats, velocity, durationBeats } });
     }
     void replaceAll(std::vector<Pattern> patterns)
     {
@@ -108,7 +109,7 @@ private:
                     const auto startFrame = scheduler.nextBarFrame(renderFrame.load(std::memory_order_acquire));
                     for (const auto& pattern : command.patterns)
                         scheduler.replaceAtFrame(pattern.playerIndex, pattern.notes, pattern.periodBeats, pattern.velocity,
-                                                 pattern.durationBeats, startFrame);
+                                                 pattern.durationBeats, startFrame, pattern.channelId);
                 } else if (command.type == CommandType::remove) {
                     scheduler.remove(command.playerIndex);
                 } else {

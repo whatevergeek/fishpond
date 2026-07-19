@@ -3,9 +3,9 @@
 #include "host/SingleChannelHost.h"
 
 namespace fishpond {
-class ControlledVST3Bass {
+class HostedInstrument {
 public:
-    explicit ControlledVST3Bass(AudioConfiguration initialConfiguration)
+    explicit HostedInstrument(AudioConfiguration initialConfiguration)
         : configuration(initialConfiguration), host(configuration) {}
 
     bool prepareBundle(const juce::File& bundle, std::string& diagnostic);
@@ -18,4 +18,7 @@ private:
     AudioConfiguration configuration;
     SingleChannelHost host;
 };
+
+// P1 fixture compatibility only. New application code uses HostedInstrument.
+using ControlledVST3Bass = HostedInstrument;
 }

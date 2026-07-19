@@ -46,11 +46,12 @@ public:
                  double durationBeats, std::uint64_t renderFrame) noexcept
     {
         return replaceAtFrame(playerIndex, nextNotes, periodBeats, nextVelocity, durationBeats,
-                              renderFrame + timing.blockSize);
+                              renderFrame + timing.blockSize, static_cast<std::uint64_t>(playerIndex + 1));
     }
 
     bool replaceAtFrame(std::size_t playerIndex, const std::vector<int>& nextNotes, double periodBeats,
-                        std::uint8_t nextVelocity, double durationBeats, std::uint64_t startFrame) noexcept
+                        std::uint8_t nextVelocity, double durationBeats, std::uint64_t startFrame,
+                        std::uint64_t channelId = 0) noexcept
     {
         if (playerIndex >= players.size() || nextNotes.empty() || nextNotes.size() > players[playerIndex].notes.size()
             || periodBeats <= 0.0 || durationBeats <= 0.0)
@@ -74,6 +75,7 @@ public:
         player.velocity = nextVelocity;
         player.periodBeats = periodBeats;
         player.durationBeats = durationBeats;
+        player.channelId = channelId == 0 ? static_cast<std::uint64_t>(playerIndex + 1) : channelId;
         player.nextFrame = startFrame;
         return true;
     }
@@ -101,7 +103,7 @@ public:
             if (next == nullptr)
                 return;
             const auto note = next->notes[next->nextNote];
-            if (note >= 0 && producer.schedule({ static_cast<std::uint64_t>(next - players.data() + 1), next->nextFrame,
+            if (note >= 0 && producer.schedule({ next->channelId, next->nextFrame,
                                                  next->durationFrames, static_cast<std::uint8_t>(note), next->velocity, 1 })
                 != NoteSubmitResult::queued)
                 return;
@@ -127,6 +129,7 @@ private:
         std::uint8_t velocity { 100 };
         double periodBeats {};
         double durationBeats {};
+        std::uint64_t channelId { 1 };
         std::uint64_t nextFrame {};
     };
 

@@ -17,6 +17,7 @@ public:
 
 struct PendingBassPattern {
     std::size_t playerIndex {};
+    std::uint64_t channelId {};
     std::vector<int> notes;
     double periodBeats {};
     double durationBeats {};
@@ -84,9 +85,31 @@ MainComponent::MainComponent()
     bassChannelId = bassChannel->id;
     bassChannelName.setText("Bass", juce::dontSendNotification);
     renameBassButton.onClick = [this] { renameBassChannel(); };
+    const auto leadChannel = channels.add("Lead");
+    jassert(leadChannel.has_value());
+    leadChannelId = leadChannel->id;
+    leadChannelName.setText("Lead", juce::dontSendNotification);
+    loadLeadButton.onClick = [this] { loadLeadBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH)); };
+    chooseLeadButton.onClick = [this] {
+        leadPluginChooser = std::make_unique<juce::FileChooser>("Select a Lead VST3 instrument", juce::File(), "*.vst3");
+        leadPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
+                                           | juce::FileBrowserComponent::canSelectFiles
+                                           | juce::FileBrowserComponent::canSelectDirectories,
+            [this] (const juce::FileChooser& chooser) {
+                const auto bundle = chooser.getResult();
+                leadPluginChooser.reset();
+                if (bundle != juce::File())
+                    loadLeadBundle(bundle);
+            });
+    };
+    renameLeadButton.onClick = [this] { renameLeadChannel(); };
     mixerPlaceholder.addAndMakeVisible(openBassEditorButton);
     mixerPlaceholder.addAndMakeVisible(bassChannelName);
     mixerPlaceholder.addAndMakeVisible(renameBassButton);
+    mixerPlaceholder.addAndMakeVisible(loadLeadButton);
+    mixerPlaceholder.addAndMakeVisible(chooseLeadButton);
+    mixerPlaceholder.addAndMakeVisible(leadChannelName);
+    mixerPlaceholder.addAndMakeVisible(renameLeadButton);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
     tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);
 
@@ -106,7 +129,8 @@ MainComponent::MainComponent()
 
     deviceStatus.setText("Audio engine stopped", juce::dontSendNotification);
     deviceManager.addAudioCallback(this);
-    bassMidi.ensureSize(4096);
+    for (auto& midi : channelMidi)
+        midi.ensureSize(4096);
     tempoSlider.setRange(30.0, 300.0, 1.0);
     tempoSlider.setValue(120.0, juce::dontSendNotification);
     tempoSlider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -133,12 +157,26 @@ void MainComponent::loadBassBundle(const juce::File& bundle)
             return;
         }
         bassEditorWindow.reset();
-        bass = std::make_unique<fishpond::ControlledVST3Bass>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
+        bass = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
         std::string diagnostic;
         const auto prepared = bass->prepareBundle(bundle, diagnostic);
         const auto committed = prepared && bass->commitAtBlockBoundary(diagnostic);
         mixerPlaceholder.setText(committed ? "Bass VST3 ready: " + bundle.getFileName() : diagnostic,
                                  juce::dontSendNotification);
+}
+
+void MainComponent::loadLeadBundle(const juce::File& bundle)
+{
+    if (audioShell.state() == fishpond::AudioShellState::running) {
+        mixerPlaceholder.setText("Stop audio before loading a Lead VST3", juce::dontSendNotification);
+        return;
+    }
+    lead = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
+    std::string diagnostic;
+    const auto prepared = lead->prepareBundle(bundle, diagnostic);
+    const auto committed = prepared && lead->commitAtBlockBoundary(diagnostic);
+    mixerPlaceholder.setText(committed ? "Lead VST3 ready: " + bundle.getFileName() : diagnostic,
+                             juce::dontSendNotification);
 }
 
 void MainComponent::openBassEditor()
@@ -171,6 +209,17 @@ void MainComponent::renameBassChannel()
     const auto channel = channels.resolve(bassChannelName.getText().toStdString());
     mixerPlaceholder.setText("Channel renamed: " + bassChannelName.getText() + " (target=\"" + juce::String(channel->alias) + "\")",
                              juce::dontSendNotification);
+}
+
+void MainComponent::renameLeadChannel()
+{
+    if (! channels.rename(leadChannelId, leadChannelName.getText().toStdString())) {
+        mixerPlaceholder.setText("FP_CHANNEL_NAME_INVALID: choose a unique non-empty name", juce::dontSendNotification);
+        return;
+    }
+    const auto channel = channels.resolve(leadChannelName.getText().toStdString());
+    mixerPlaceholder.setText("Channel renamed: " + leadChannelName.getText() + " (target=\""
+                                 + juce::String(channel->alias) + "\")", juce::dontSendNotification);
 }
 
 MainComponent::~MainComponent()
@@ -222,7 +271,11 @@ void MainComponent::timerCallback()
             continue;
         }
         if (completion.source.find(">> n(") != std::string::npos) {
-            const auto bassReady = bass != nullptr && bass->state() == fishpond::SingleChannelState::ready;
+            std::vector<std::uint64_t> readyChannelIds;
+            if (bass != nullptr && bass->state() == fishpond::SingleChannelState::ready)
+                readyChannelIds.push_back(bassChannelId);
+            if (lead != nullptr && lead->state() == fishpond::SingleChannelState::ready)
+                readyChannelIds.push_back(leadChannelId);
             std::vector<PendingBassPattern> patterns;
             juce::StringArray lines;
             lines.addLines(juce::String(completion.source));
@@ -232,14 +285,16 @@ void MainComponent::timerCallback()
                 if (patternSource.find(">> n(") == std::string::npos)
                     continue;
 
-                const auto validation = runtime.evaluateEditorText(patternSource, channels,
-                                                                     bassReady ? std::vector<std::uint64_t> { bassChannelId }
-                                                                               : std::vector<std::uint64_t> {});
+                const auto validation = runtime.evaluateEditorText(patternSource, channels, readyChannelIds);
                 if (! validation.accepted) {
                     diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
                     patterns.clear();
                     break;
                 }
+                const auto targetMarker = patternSource.find("target=");
+                const auto targetQuote = patternSource.find('"', targetMarker);
+                const auto targetEnd = patternSource.find('"', targetQuote + 1);
+                const auto channel = channels.resolve(patternSource.substr(targetQuote + 1, targetEnd - targetQuote - 1));
 
                 const auto notes = runtime.notesFromEditorText(patternSource);
                 const auto playerIndex = runtime.playerIndexFromEditorText(patternSource);
@@ -251,7 +306,12 @@ void MainComponent::timerCallback()
                     patterns.clear();
                     break;
                 }
-                patterns.push_back({ *playerIndex, notes, *periodBeats, *durationBeats, *velocity });
+                if (! channel) {
+                    diagnostics.setText("FP_TARGET_UNAVAILABLE: target has no ready instrument channel", juce::dontSendNotification);
+                    patterns.clear();
+                    break;
+                }
+                patterns.push_back({ *playerIndex, channel->id, notes, *periodBeats, *durationBeats, *velocity });
             }
 
             if (patterns.empty())
@@ -260,13 +320,13 @@ void MainComponent::timerCallback()
             std::vector<fishpond::AsyncBassScheduler<8192>::Pattern> scheduledPatterns;
             scheduledPatterns.reserve(patterns.size());
             for (auto& pattern : patterns)
-                scheduledPatterns.push_back({ pattern.playerIndex, std::move(pattern.notes), pattern.periodBeats,
+                scheduledPatterns.push_back({ pattern.playerIndex, pattern.channelId, std::move(pattern.notes), pattern.periodBeats,
                                               static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats });
             bassScheduler.replaceAll(std::move(scheduledPatterns));
 
             diagnostics.setText("Queued " + juce::String(static_cast<int>(patterns.size()))
-                                    + (patterns.size() == 1 ? " Bass-note pattern for the next bar"
-                                                            : " Bass-note patterns for the next bar"),
+                                    + (patterns.size() == 1 ? " instrument pattern for the next bar"
+                                                            : " instrument patterns for the next bar"),
                                 juce::dontSendNotification);
         } else {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
@@ -318,6 +378,11 @@ void MainComponent::resized()
     openBassEditorButton.setBounds(mixerActions.removeFromLeft(130));
     bassChannelName.setBounds(mixerActions.removeFromLeft(160));
     renameBassButton.setBounds(mixerActions.removeFromLeft(80));
+    mixerActions = mixerArea.removeFromTop(32);
+    loadLeadButton.setBounds(mixerActions.removeFromLeft(160));
+    chooseLeadButton.setBounds(mixerActions.removeFromLeft(120));
+    leadChannelName.setBounds(mixerActions.removeFromLeft(160));
+    renameLeadButton.setBounds(mixerActions.removeFromLeft(80));
 }
 
 void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
@@ -334,6 +399,8 @@ void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
     audioShell.start();
     activeSampleRate.store(device->getCurrentSampleRate(), std::memory_order_release);
     activeBlockSize.store(static_cast<std::uint32_t>(device->getCurrentBufferSizeSamples()), std::memory_order_release);
+    for (auto& buffer : channelAudio)
+        buffer.setSize(outputChannels, device->getCurrentBufferSizeSamples(), false, false, true);
     updateSchedulerTiming();
     deviceStatus.setText("Running " + device->getName() + " — "
                              + juce::String(device->getCurrentSampleRate(), 0) + " Hz, "
@@ -357,23 +424,41 @@ void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, f
                                                       const juce::AudioIODeviceCallbackContext&)
 {
     juce::AudioBuffer<float> audio(output, outputChannels, samples);
-    bassMidi.clear();
+    for (auto& midi : channelMidi)
+        midi.clear();
     const auto start = renderFrame.load();
     noteDispatcher.drain(noteQueue, start, static_cast<std::uint32_t>(samples), observedPanic,
         [this] (const fishpond::NoteEvent& event, std::uint32_t offset) {
+            if (event.type == fishpond::NoteEventType::allNotesOff && event.channelId == 0) {
+                for (auto& midi : channelMidi) {
+                    midi.addEvent(juce::MidiMessage::allNotesOff(event.midiChannel), static_cast<int>(offset));
+                    midi.addEvent(juce::MidiMessage::allSoundOff(event.midiChannel), static_cast<int>(offset));
+                }
+                return;
+            }
+            auto* midi = event.channelId == bassChannelId ? &channelMidi[0]
+                       : event.channelId == leadChannelId ? &channelMidi[1] : nullptr;
+            if (midi == nullptr)
+                return;
             if (event.type == fishpond::NoteEventType::noteOn)
-                bassMidi.addEvent(juce::MidiMessage::noteOn(event.midiChannel, event.midiNote,
+                midi->addEvent(juce::MidiMessage::noteOn(event.midiChannel, event.midiNote,
                                                              event.velocity / 127.0f), static_cast<int>(offset));
             else if (event.type == fishpond::NoteEventType::noteOff)
-                bassMidi.addEvent(juce::MidiMessage::noteOff(event.midiChannel, event.midiNote), static_cast<int>(offset));
+                midi->addEvent(juce::MidiMessage::noteOff(event.midiChannel, event.midiNote), static_cast<int>(offset));
             else if (event.type == fishpond::NoteEventType::allNotesOff) {
-                bassMidi.addEvent(juce::MidiMessage::allNotesOff(event.midiChannel), static_cast<int>(offset));
-                bassMidi.addEvent(juce::MidiMessage::allSoundOff(event.midiChannel), static_cast<int>(offset));
+                midi->addEvent(juce::MidiMessage::allNotesOff(event.midiChannel), static_cast<int>(offset));
+                midi->addEvent(juce::MidiMessage::allSoundOff(event.midiChannel), static_cast<int>(offset));
             }
         });
-    if (bass != nullptr)
-        bass->process(audio, bassMidi);
-    else
-        audio.clear();
+    audio.clear();
+    const std::array<fishpond::HostedInstrument*, 2> instruments { bass.get(), lead.get() };
+    for (std::size_t index = 0; index < instruments.size(); ++index) {
+        auto& instrumentAudio = channelAudio[index];
+        instrumentAudio.clear();
+        if (instruments[index] != nullptr)
+            instruments[index]->process(instrumentAudio, channelMidi[index]);
+        for (int channel = 0; channel < outputChannels; ++channel)
+            audio.addFrom(channel, 0, instrumentAudio, channel, 0, samples);
+    }
     renderFrame.store(start + samples);
 }
