@@ -18,6 +18,23 @@ int main(int argc, char** argv)
         return runtime.evaluate("player = 'valid'").accepted
             && ! runtime.evaluate("raise RuntimeError('broken evaluation')").accepted
             && runtime.evaluate("assert player == 'valid'").accepted ? 0 : 1;
+    if (test == "player-replacement")
+        return runtime.evaluate("Pa >> n('C2', target='bass')").accepted
+            && runtime.evaluate("Pa >> n('D2', target='bass')").accepted
+            && runtime.evaluate("assert _fishpond_players['Pa'].notes == 'D2'").accepted ? 0 : 1;
+    if (test == "silence-panic")
+        return runtime.evaluate("Pa >> n('C2', target='bass')").accepted
+            && runtime.evaluate("Pb * n('D2', target='bass')").accepted
+            && runtime.evaluate("silence(); assert not _fishpond_players").accepted
+            && runtime.evaluate("Pa >> n('C3', target='bass'); panic(); assert not _fishpond_players").accepted ? 0 : 1;
+    if (test == "target-required") {
+        const auto result = runtime.evaluate("Pa >> n('C2')");
+        return ! result.accepted && result.diagnostic.find("FP_TARGET_REQUIRED") != std::string::npos ? 0 : 1;
+    }
+    if (test == "syntax-location") {
+        const auto result = runtime.evaluate("tempo =\n");
+        return ! result.accepted && result.diagnostic.find("line 1") != std::string::npos ? 0 : 1;
+    }
 
     return 2;
 }
