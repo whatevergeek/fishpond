@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <atomic>
+#include <vector>
 
 class MainComponent final : public juce::Component,
                             private juce::AudioIODeviceCallback,
@@ -27,6 +28,7 @@ private:
     bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
     void executeEditorText(const juce::String& source);
     void timerCallback() override;
+    void scheduleActiveBassPlayer();
     juce::String currentCodeBlock() const;
     juce::String currentLine() const;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
@@ -43,6 +45,10 @@ private:
     fishpond::AudioEventDispatcher<8192> noteDispatcher;
     std::atomic<std::uint64_t> renderFrame {};
     std::uint64_t observedPanic {};
+    std::vector<int> activeBassNotes;
+    std::uint32_t activeBassPeriodFrames {};
+    std::uint64_t nextBassFrame {};
+    std::size_t nextBassNote {};
     juce::MidiBuffer bassMidi;
     std::unique_ptr<fishpond::ControlledVST3Bass> bass;
     juce::AudioDeviceManager deviceManager;

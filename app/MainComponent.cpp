@@ -110,25 +110,34 @@ void MainComponent::timerCallback()
                     diagnostics.setText("FP_PATTERN_VALUE_INVALID: p must be a positive number", juce::dontSendNotification);
                     continue;
                 }
-                const auto periodFrames = static_cast<std::uint32_t>(*periodBeats * 24'000.0);
-                auto targetFrame = renderFrame.load() + 512;
-                auto scheduled = 0;
-                for (const auto note : notes) {
-                    if (noteProducer.schedule({ 1, targetFrame, periodFrames, static_cast<std::uint8_t>(note), 100, 1 })
-                        != fishpond::NoteSubmitResult::queued)
-                        break;
-                    ++scheduled;
-                    targetFrame += periodFrames;
-                }
-                diagnostics.setText(scheduled == static_cast<int>(notes.size())
-                                        ? "Scheduled " + juce::String(scheduled) + " Bass notes"
-                                        : "FP_EVENT_QUEUE_FULL: Bass pattern was only partly scheduled",
+                activeBassNotes = notes;
+                activeBassPeriodFrames = static_cast<std::uint32_t>(*periodBeats * 24'000.0);
+                nextBassFrame = renderFrame.load() + 512;
+                nextBassNote = 0;
+                scheduleActiveBassPlayer();
+                diagnostics.setText("Playing " + juce::String(activeBassNotes.size()) + " Bass-note pattern",
                                     juce::dontSendNotification);
             } else
                 diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
         } else {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
         }
+    }
+    scheduleActiveBassPlayer();
+}
+
+void MainComponent::scheduleActiveBassPlayer()
+{
+    if (activeBassNotes.empty() || activeBassPeriodFrames == 0)
+        return;
+    const auto horizon = renderFrame.load() + 48'000;
+    while (nextBassFrame < horizon) {
+        const auto note = activeBassNotes[nextBassNote++ % activeBassNotes.size()];
+        if (noteProducer.schedule({ 1, nextBassFrame, activeBassPeriodFrames,
+                                   static_cast<std::uint8_t>(note), 100, 1 })
+            != fishpond::NoteSubmitResult::queued)
+            return;
+        nextBassFrame += activeBassPeriodFrames;
     }
 }
 
