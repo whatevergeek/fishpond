@@ -9,6 +9,19 @@ set_tests_properties(UT_BuildContract_Compiles PROPERTIES
 add_executable(fishpond_p0_foundations p0_foundations.cpp)
 target_link_libraries(fishpond_p0_foundations PRIVATE fishpond_build_config)
 
+add_executable(fishpond_p1_audio_shell integration/audio_shell.cpp ../src/AudioShell.cpp)
+target_link_libraries(fishpond_p1_audio_shell PRIVATE fishpond_build_config)
+target_include_directories(fishpond_p1_audio_shell PRIVATE "${PROJECT_SOURCE_DIR}/src")
+
+set(FISHPOND_P1_AUDIO_SHELL_TESTS
+    IT_AudioDeviceState
+    IT_AudioEngineLifecycle
+)
+foreach(test_id IN LISTS FISHPOND_P1_AUDIO_SHELL_TESTS)
+    add_test(NAME ${test_id} COMMAND fishpond_p1_audio_shell ${test_id})
+    set_tests_properties(${test_id} PROPERTIES LABELS "IT;P1;FR-004;FR-050")
+endforeach()
+
 set(FISHPOND_P0_FOUNDATION_TESTS
     IT_FixtureInstrumentMidiAndAudio
     IT_FixtureEffectParameterAndStateFailures
