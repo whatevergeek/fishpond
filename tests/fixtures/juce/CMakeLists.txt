@@ -28,6 +28,12 @@ add_executable(fishpond_juce_lifecycle_spike
 )
 target_link_libraries(fishpond_juce_lifecycle_spike PRIVATE juce::juce_audio_utils)
 
+if(UNIX AND NOT APPLE)
+    find_package(CURL REQUIRED)
+    target_link_libraries(FishpondFixtureInstrument PRIVATE CURL::libcurl)
+    target_link_libraries(fishpond_juce_lifecycle_spike PRIVATE CURL::libcurl)
+endif()
+
 add_custom_target(run-juce-lifecycle-spike
     COMMAND fishpond_juce_lifecycle_spike
     DEPENDS fishpond_juce_lifecycle_spike
