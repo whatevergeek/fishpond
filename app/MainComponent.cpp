@@ -40,7 +40,7 @@ MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
-    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# silence() stops all players; silence(Pa) or Pa.stop() stops one\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
