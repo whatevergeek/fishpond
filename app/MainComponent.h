@@ -28,6 +28,7 @@ private:
     bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
     void executeEditorText(const juce::String& source);
     void timerCallback() override;
+    void updateSchedulerTiming();
     juce::String currentCodeBlock() const;
     juce::String currentLine() const;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
@@ -43,6 +44,8 @@ private:
     fishpond::AudioEventDispatcher<8192> noteDispatcher;
     std::atomic<std::uint64_t> renderFrame {};
     fishpond::AsyncBassScheduler<8192> bassScheduler { noteQueue, renderFrame };
+    std::atomic<double> activeSampleRate { 48'000.0 };
+    std::atomic<std::uint32_t> activeBlockSize { 512 };
     std::uint64_t observedPanic {};
     juce::MidiBuffer bassMidi;
     std::unique_ptr<fishpond::ControlledVST3Bass> bass;
@@ -57,4 +60,5 @@ private:
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
     juce::Label tempoLabel { {}, "120 BPM" };
+    juce::Slider tempoSlider;
 };

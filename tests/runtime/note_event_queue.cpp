@@ -99,8 +99,26 @@ int main(int argc, char** argv)
         if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOff
             || received.targetSampleFrame != 23'178 || received.midiNote != 36)
             return 1;
-        return scheduledQueue.tryPop(received) && received.type == fishpond::NoteEventType::noteOn
-            && received.targetSampleFrame == 23'178 && received.midiNote == 48 ? 0 : 1;
+        if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOn
+            || received.targetSampleFrame != 23'178 || received.midiNote != 48)
+            return 1;
+
+        fishpond::NoteEventQueue<2> tempoQueue;
+        fishpond::BassPlayerScheduler<2> tempoScheduler(tempoQueue);
+        if (! tempoScheduler.setTiming({ 48'000.0, 256, 120.0 })
+            || ! tempoScheduler.replace({ 60 }, 1.0, 0))
+            return 1;
+        tempoScheduler.pump(0);
+        if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 256)
+            return 1;
+        if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 24'256)
+            return 1;
+        if (! tempoScheduler.setTiming({ 48'000.0, 256, 60.0 }, 0))
+            return 1;
+        tempoScheduler.pump(0);
+        if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 256)
+            return 1;
+        return tempoQueue.tryPop(received) && received.targetSampleFrame == 48'256 ? 0 : 1;
     }
 
     return 2;

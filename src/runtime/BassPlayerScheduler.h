@@ -21,11 +21,18 @@ class BassPlayerScheduler {
 public:
     explicit BassPlayerScheduler(NoteEventQueue<Capacity>& queueToFill) : producer(queueToFill) {}
 
-    bool setTiming(SchedulerTiming next) noexcept
+    bool setTiming(SchedulerTiming next, std::uint64_t renderFrame = 0) noexcept
     {
         if (next.sampleRate <= 0.0 || next.blockSize == 0 || next.bpm <= 0.0)
             return false;
         timing = next;
+        if (noteCount != 0 && periodBeats > 0.0) {
+            const auto frames = framesForPeriod(periodBeats);
+            if (frames == 0)
+                return false;
+            periodFrames = frames;
+            nextFrame = renderFrame + timing.blockSize;
+        }
         return true;
     }
 
@@ -34,9 +41,8 @@ public:
         if (nextNotes.empty() || nextNotes.size() > notes.size() || periodBeats <= 0.0)
             return false;
 
-        const auto frames = static_cast<std::uint64_t>(std::llround(
-            periodBeats * timing.sampleRate * 60.0 / timing.bpm));
-        if (frames == 0 || frames > UINT32_MAX)
+        const auto frames = framesForPeriod(periodBeats);
+        if (frames == 0)
             return false;
 
         for (std::size_t index = 0; index < nextNotes.size(); ++index) {
@@ -46,7 +52,8 @@ public:
         }
         noteCount = nextNotes.size();
         nextNote = 0;
-        periodFrames = static_cast<std::uint32_t>(frames);
+        periodFrames = frames;
+        this->periodBeats = periodBeats;
         nextFrame = renderFrame + timing.blockSize;
         return true;
     }
@@ -56,6 +63,7 @@ public:
         noteCount = 0;
         nextNote = 0;
         periodFrames = 0;
+        periodBeats = 0.0;
     }
 
     void pump(std::uint64_t renderFrame) noexcept
@@ -74,12 +82,20 @@ public:
     }
 
 private:
+    std::uint32_t framesForPeriod(double beats) const noexcept
+    {
+        const auto frames = static_cast<std::uint64_t>(std::llround(
+            beats * timing.sampleRate * 60.0 / timing.bpm));
+        return frames == 0 || frames > UINT32_MAX ? 0U : static_cast<std::uint32_t>(frames);
+    }
+
     NoteEventProducer<Capacity> producer;
     SchedulerTiming timing;
     std::array<std::uint8_t, 128> notes {};
     std::size_t noteCount {};
     std::size_t nextNote {};
     std::uint32_t periodFrames {};
+    double periodBeats {};
     std::uint64_t nextFrame {};
 };
 }

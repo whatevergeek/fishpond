@@ -50,11 +50,20 @@ MainComponent::MainComponent()
     deviceStatus.setText("Audio engine stopped", juce::dontSendNotification);
     deviceManager.addAudioCallback(this);
     bassMidi.ensureSize(4096);
+    tempoSlider.setRange(30.0, 300.0, 1.0);
+    tempoSlider.setValue(120.0, juce::dontSendNotification);
+    tempoSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    tempoSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 56, 22);
+    tempoSlider.onValueChange = [this] {
+        tempoLabel.setText(juce::String(tempoSlider.getValue(), 0) + " BPM", juce::dontSendNotification);
+        updateSchedulerTiming();
+    };
     startTimerHz(30);
     addAndMakeVisible(tabs);
     addAndMakeVisible(deviceStatus);
     addAndMakeVisible(startStopButton);
     addAndMakeVisible(tempoLabel);
+    addAndMakeVisible(tempoSlider);
     setSize(1040, 700);
 }
 
@@ -154,7 +163,8 @@ void MainComponent::resized()
     auto area = getLocalBounds().reduced(12);
     auto transport = area.removeFromTop(34);
     deviceStatus.setBounds(transport.removeFromLeft(500));
-    tempoLabel.setBounds(transport.removeFromLeft(90));
+    tempoLabel.setBounds(transport.removeFromLeft(76));
+    tempoSlider.setBounds(transport.removeFromLeft(180));
     startStopButton.setBounds(transport.removeFromRight(120));
     tabs.setBounds(area);
     auto liveArea = liveCodingPanel.getLocalBounds().reduced(8);
@@ -178,12 +188,19 @@ void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
     }
 
     audioShell.start();
-    bassScheduler.setTiming({ device->getCurrentSampleRate(),
-                              static_cast<std::uint32_t>(device->getCurrentBufferSizeSamples()), 120.0 });
+    activeSampleRate.store(device->getCurrentSampleRate(), std::memory_order_release);
+    activeBlockSize.store(static_cast<std::uint32_t>(device->getCurrentBufferSizeSamples()), std::memory_order_release);
+    updateSchedulerTiming();
     deviceStatus.setText("Running " + device->getName() + " — "
                              + juce::String(device->getCurrentSampleRate(), 0) + " Hz, "
                              + juce::String(device->getCurrentBufferSizeSamples()) + " samples",
                          juce::dontSendNotification);
+}
+
+void MainComponent::updateSchedulerTiming()
+{
+    bassScheduler.setTiming({ activeSampleRate.load(std::memory_order_acquire),
+                              activeBlockSize.load(std::memory_order_acquire), tempoSlider.getValue() });
 }
 
 void MainComponent::audioDeviceStopped()

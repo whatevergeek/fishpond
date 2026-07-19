@@ -77,8 +77,10 @@ private:
                 pending.swap(commands);
             }
             for (const auto& command : pending) {
-                if (command.type == CommandType::timing)
-                    scheduler.setTiming(command.timing);
+                if (command.type == CommandType::timing) {
+                    queue.requestPanic();
+                    scheduler.setTiming(command.timing, renderFrame.load(std::memory_order_acquire));
+                }
                 else if (command.type == CommandType::replace) {
                     queue.requestPanic();
                     scheduler.replace(command.notes, command.periodBeats,
