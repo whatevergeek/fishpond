@@ -7,8 +7,9 @@ public:
         : DocumentWindow(processor.getName(), juce::Colours::darkgrey, juce::DocumentWindow::closeButton)
     {
         setUsingNativeTitleBar(true);
-        setContentOwned(processor.createEditorAndMakeActive(), true);
-        centreWithSize(getWidth(), getHeight());
+        auto* editor = processor.createEditorAndMakeActive();
+        setContentOwned(editor, true);
+        centreWithSize(editor->getWidth(), editor->getHeight());
     }
 
     void closeButtonPressed() override { setVisible(false); }
@@ -19,13 +20,13 @@ MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
-    liveCodingEditor.setText("# Ctrl+Return: evaluate block\n# Shift+Return: evaluate line\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    liveCodingEditor.setText("# Ctrl/Cmd+Return: evaluate block\n# Shift+Return: evaluate line\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setText("Ready. Load the controlled Bass fixture in Mixer, then evaluate a pattern.", juce::dontSendNotification);
-    executeButton.setButtonText("Execute block (Ctrl+Return)");
-    executeButton.setTooltip("Evaluate the current code block (Ctrl+Return). Shift+Return evaluates the current line.");
+    executeButton.setButtonText("Execute block (Ctrl/Cmd+Return)");
+    executeButton.setTooltip("Evaluate the current code block (Ctrl/Cmd+Return). Shift+Return evaluates the current line.");
     executeButton.onClick = [this] { executeEditorText(currentCodeBlock()); };
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(executeButton);
@@ -144,7 +145,7 @@ MainComponent::~MainComponent()
 bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component*)
 {
     const auto& modifiers = key.getModifiers();
-    if (modifiers.isCtrlDown() && key.getKeyCode() == juce::KeyPress::returnKey) {
+    if ((modifiers.isCtrlDown() || modifiers.isCommandDown()) && key.getKeyCode() == juce::KeyPress::returnKey) {
         executeEditorText(currentCodeBlock());
         return true;
     }
