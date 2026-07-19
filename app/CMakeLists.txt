@@ -21,11 +21,17 @@ target_include_directories(FishpondApp PRIVATE
     "${PROJECT_SOURCE_DIR}/src"
 )
 
+if(APPLE)
+    set(FISHPOND_CONTROLLED_BASS_LOAD_PATH "$<TARGET_BUNDLE_DIR:FishpondFixtureInstrument_VST3>")
+else()
+    set(FISHPOND_CONTROLLED_BASS_LOAD_PATH "$<TARGET_FILE:FishpondFixtureInstrument_VST3>")
+endif()
+
 target_compile_definitions(FishpondApp PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_PLUGINHOST_VST3=1
-    FISHPOND_CONTROLLED_BASS_PATH="$<TARGET_BUNDLE_DIR:FishpondFixtureInstrument_VST3>"
+    FISHPOND_CONTROLLED_BASS_PATH="${FISHPOND_CONTROLLED_BASS_LOAD_PATH}"
 )
 
 add_dependencies(FishpondApp FishpondFixtureInstrument_VST3)
