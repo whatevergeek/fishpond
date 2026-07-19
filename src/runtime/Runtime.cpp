@@ -183,6 +183,20 @@ std::vector<int> Runtime::notesFromEditorText(const std::string& source) const
         ? std::vector<int> {} : parseNotes(source.substr(firstQuote + 1, secondQuote - firstQuote - 1));
 }
 
+std::optional<double> Runtime::periodBeatsFromEditorText(const std::string& source) const
+{
+    const auto marker = source.find("p=");
+    if (marker == std::string::npos)
+        return 1.0;
+    const auto end = source.find_first_of(",)", marker + 2);
+    try {
+        const auto value = std::stod(source.substr(marker + 2, end - (marker + 2)));
+        return value > 0.0 ? std::optional<double>(value) : std::nullopt;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
 bool Runtime::playerReplacementContract() const
 {
     Engine engine; engine.createChannel("Bass");

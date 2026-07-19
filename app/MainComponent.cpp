@@ -105,14 +105,20 @@ void MainComponent::timerCallback()
             const auto validation = runtime.evaluateEditorText(completion.source, bassReady);
             if (validation.accepted) {
                 const auto notes = runtime.notesFromEditorText(completion.source);
+                const auto periodBeats = runtime.periodBeatsFromEditorText(completion.source);
+                if (! periodBeats) {
+                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: p must be a positive number", juce::dontSendNotification);
+                    continue;
+                }
+                const auto periodFrames = static_cast<std::uint32_t>(*periodBeats * 24'000.0);
                 auto targetFrame = renderFrame.load() + 512;
                 auto scheduled = 0;
                 for (const auto note : notes) {
-                    if (noteProducer.schedule({ 1, targetFrame, 12'000, static_cast<std::uint8_t>(note), 100, 1 })
+                    if (noteProducer.schedule({ 1, targetFrame, periodFrames, static_cast<std::uint8_t>(note), 100, 1 })
                         != fishpond::NoteSubmitResult::queued)
                         break;
                     ++scheduled;
-                    targetFrame += 12'000; // p=0.5 at 120 BPM / 48 kHz
+                    targetFrame += periodFrames;
                 }
                 diagnostics.setText(scheduled == static_cast<int>(notes.size())
                                         ? "Scheduled " + juce::String(scheduled) + " Bass notes"

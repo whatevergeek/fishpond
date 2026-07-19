@@ -15,6 +15,7 @@ public:
     EvaluationResult evaluateEditorText(const std::string& source, bool bassReady = false) const;
     std::optional<int> firstNoteFromEditorText(const std::string& source) const;
     std::vector<int> notesFromEditorText(const std::string& source) const;
+    std::optional<double> periodBeatsFromEditorText(const std::string& source) const;
     bool playerReplacementContract() const;
     bool patternContract() const;
     bool periodContract() const;
