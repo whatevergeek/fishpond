@@ -23,6 +23,14 @@ public:
 
     explicit BassPlayerScheduler(NoteEventQueue<Capacity>& queueToFill) : producer(queueToFill) {}
 
+    std::uint64_t nextBarFrame(std::uint64_t renderFrame) const noexcept
+    {
+        const auto barFrames = framesForPeriod(4.0);
+        if (barFrames == 0)
+            return 0;
+        return (renderFrame / barFrames + 1) * static_cast<std::uint64_t>(barFrames);
+    }
+
     bool setTiming(SchedulerTiming next) noexcept
     {
         if (next.sampleRate <= 0.0 || next.blockSize == 0 || next.bpm <= 0.0)
@@ -36,6 +44,13 @@ public:
 
     bool replace(std::size_t playerIndex, const std::vector<int>& nextNotes, double periodBeats, std::uint8_t nextVelocity,
                  double durationBeats, std::uint64_t renderFrame) noexcept
+    {
+        return replaceAtFrame(playerIndex, nextNotes, periodBeats, nextVelocity, durationBeats,
+                              renderFrame + timing.blockSize);
+    }
+
+    bool replaceAtFrame(std::size_t playerIndex, const std::vector<int>& nextNotes, double periodBeats,
+                        std::uint8_t nextVelocity, double durationBeats, std::uint64_t startFrame) noexcept
     {
         if (playerIndex >= players.size() || nextNotes.empty() || nextNotes.size() > players[playerIndex].notes.size()
             || periodBeats <= 0.0 || durationBeats <= 0.0)
@@ -59,7 +74,7 @@ public:
         player.velocity = nextVelocity;
         player.periodBeats = periodBeats;
         player.durationBeats = durationBeats;
-        player.nextFrame = renderFrame + timing.blockSize;
+        player.nextFrame = startFrame;
         return true;
     }
 

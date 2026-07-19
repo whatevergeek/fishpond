@@ -186,6 +186,32 @@ int main(int argc, char** argv)
             && received.targetSampleFrame == 36'256 ? 0 : 1;
     }
 
+    if (test == "scheduler-bar-quantization") {
+        fishpond::NoteEventQueue<8> scheduledQueue;
+        fishpond::BassPlayerScheduler<8> scheduler(scheduledQueue);
+        if (! scheduler.setTiming({ 48'000.0, 256, 120.0 })
+            || scheduler.nextBarFrame(1) != 96'000
+            || scheduler.nextBarFrame(95'999) != 96'000
+            || scheduler.nextBarFrame(96'000) != 192'000
+            || ! scheduler.replaceAtFrame(0, { 36 }, 1.0, 100, 0.5, scheduler.nextBarFrame(30'000))
+            || ! scheduler.replaceAtFrame(1, { 48 }, 1.0, 100, 0.5, scheduler.nextBarFrame(70'000)))
+            return 1;
+        scheduler.pump(95'000);
+        bool playerOneStartsOnBar {};
+        bool playerTwoStartsOnBar {};
+        for (int index = 0; index < 4; ++index) {
+            if (! scheduledQueue.tryPop(received))
+                return 1;
+            if (received.type != fishpond::NoteEventType::noteOn)
+                continue;
+            playerOneStartsOnBar = playerOneStartsOnBar
+                || (received.channelId == 1 && received.targetSampleFrame == 96'000);
+            playerTwoStartsOnBar = playerTwoStartsOnBar
+                || (received.channelId == 2 && received.targetSampleFrame == 96'000);
+        }
+        return playerOneStartsOnBar && playerTwoStartsOnBar ? 0 : 1;
+    }
+
     if (test == "scheduler-validation-profile") {
         fishpond::NoteEventQueue<8192> scheduledQueue;
         fishpond::BassPlayerScheduler<8192> scheduler(scheduledQueue);

@@ -19,6 +19,14 @@ namespace fishpond {
 template <std::size_t Capacity>
 class AsyncBassScheduler {
 public:
+    struct Pattern {
+        std::size_t playerIndex {};
+        std::vector<int> notes;
+        double periodBeats {};
+        std::uint8_t velocity { 100 };
+        double durationBeats { 1.0 };
+    };
+
     AsyncBassScheduler(NoteEventQueue<Capacity>& queueToFill, const std::atomic<std::uint64_t>& renderFrameToRead)
         : queue(queueToFill), renderFrame(renderFrameToRead), worker([this] { run(); }) {}
 
@@ -44,12 +52,12 @@ public:
     void replace(std::size_t playerIndex, std::vector<int> notes, double periodBeats, std::uint8_t velocity,
                  double durationBeats)
     {
-        Command command { CommandType::replace };
-        command.playerIndex = playerIndex;
-        command.notes = std::move(notes);
-        command.periodBeats = periodBeats;
-        command.velocity = velocity;
-        command.durationBeats = durationBeats;
+        replaceAll({ { playerIndex, std::move(notes), periodBeats, velocity, durationBeats } });
+    }
+    void replaceAll(std::vector<Pattern> patterns)
+    {
+        Command command { CommandType::replaceAll };
+        command.patterns = std::move(patterns);
         submit(std::move(command));
     }
     void clear() { submit({ CommandType::clear }); }
@@ -61,15 +69,12 @@ public:
     }
 
 private:
-    enum class CommandType { timing, replace, remove, clear };
+    enum class CommandType { timing, replaceAll, remove, clear };
     struct Command {
         CommandType type;
         std::size_t playerIndex {};
         SchedulerTiming timing {};
-        std::vector<int> notes;
-        double periodBeats {};
-        std::uint8_t velocity { 100 };
-        double durationBeats { 1.0 };
+        std::vector<Pattern> patterns;
     };
 
     void submit(Command command)
@@ -99,10 +104,11 @@ private:
                 if (command.type == CommandType::timing) {
                     scheduler.setTiming(command.timing);
                 }
-                else if (command.type == CommandType::replace) {
-                    queue.requestPanic();
-                    scheduler.replace(command.playerIndex, command.notes, command.periodBeats, command.velocity,
-                                      command.durationBeats, renderFrame.load(std::memory_order_acquire));
+                else if (command.type == CommandType::replaceAll) {
+                    const auto startFrame = scheduler.nextBarFrame(renderFrame.load(std::memory_order_acquire));
+                    for (const auto& pattern : command.patterns)
+                        scheduler.replaceAtFrame(pattern.playerIndex, pattern.notes, pattern.periodBeats, pattern.velocity,
+                                                 pattern.durationBeats, startFrame);
                 } else if (command.type == CommandType::remove) {
                     scheduler.remove(command.playerIndex);
                 } else {

@@ -237,12 +237,16 @@ void MainComponent::timerCallback()
             if (patterns.empty())
                 continue;
 
-            for (const auto& pattern : patterns)
-                bassScheduler.replace(pattern.playerIndex, pattern.notes, pattern.periodBeats,
-                                      static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats);
+            std::vector<fishpond::AsyncBassScheduler<8192>::Pattern> scheduledPatterns;
+            scheduledPatterns.reserve(patterns.size());
+            for (auto& pattern : patterns)
+                scheduledPatterns.push_back({ pattern.playerIndex, std::move(pattern.notes), pattern.periodBeats,
+                                              static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats });
+            bassScheduler.replaceAll(std::move(scheduledPatterns));
 
-            diagnostics.setText("Playing " + juce::String(static_cast<int>(patterns.size()))
-                                    + (patterns.size() == 1 ? " Bass-note pattern" : " Bass-note patterns"),
+            diagnostics.setText("Queued " + juce::String(static_cast<int>(patterns.size()))
+                                    + (patterns.size() == 1 ? " Bass-note pattern for the next bar"
+                                                            : " Bass-note patterns for the next bar"),
                                 juce::dontSendNotification);
         } else {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
