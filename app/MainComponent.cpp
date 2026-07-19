@@ -3,7 +3,7 @@
 MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true);
-    liveCodingEditor.setText("# Ctrl+Return: evaluate block\n# Shift+Return: evaluate line\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    liveCodingEditor.setText("# Ctrl+Return: evaluate block\n# Shift+Return: evaluate line\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
@@ -98,6 +98,15 @@ void MainComponent::timerCallback()
     while (pythonWorker.tryTakeCompletion(completion)) {
         if (! completion.result.accepted) {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
+            continue;
+        }
+        const auto command = juce::String(completion.source).trim();
+        if (command == "silence()" || command == "panic()") {
+            activeBassNotes.clear();
+            nextBassNote = 0;
+            noteQueue.requestPanic();
+            diagnostics.setText(command == "panic()" ? "Panic: cleared Bass events" : "Silenced active players",
+                                juce::dontSendNotification);
             continue;
         }
         if (completion.source.find(">> n(") != std::string::npos) {
