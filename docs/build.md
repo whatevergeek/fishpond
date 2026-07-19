@@ -2,8 +2,9 @@
 
 ## Scope
 
-Fishpond currently provides the P0 verification suite and the P1.1 macOS
-desktop/audio shell. The live-coding runtime and plugin host are later P1 work.
+Fishpond currently provides the P0 verification suite, the P1.1 macOS
+desktop/audio shell, and the early P1.2 embedded-Python evaluation path. The
+plugin host and audible instrument channel are later P1 work.
 
 ## Approved pins
 
@@ -95,6 +96,17 @@ recorded in the SDD repository's `sardine-compatibility-decision.md`.
 From the Fishpond source repository, configure the app preset, build its
 target, then open the resulting bundle:
 
+The development build requires the approved CPython 3.12.13 headers and
+framework. On an Apple Silicon Homebrew installation:
+
+```sh
+brew install python@3.12
+```
+
+This is a developer-machine build dependency only. Fishpond's release bundle
+will carry its approved Python runtime; musicians will not be asked to install
+Python separately.
+
 ```sh
 cmake --preset app-macos -DFISHPOND_FETCH_JUCE=ON
 cmake --build --preset app-macos --target FishpondApp
@@ -108,17 +120,19 @@ instead:
 
 ```sh
 cmake --preset app-macos \
+  -DPython3_ROOT_DIR=/opt/homebrew/opt/python@3.12 \
   -DFISHPOND_JUCE_SOURCE_DIR="$PWD/build/juce-fixture-macos/_deps/juce-src"
 cmake --build --preset app-macos --target FishpondApp
 open build/app-macos/app/FishpondApp_artefacts/Debug/Fishpond.app
 ```
 
-At this P1.1 stage, the app verifies the window, tab navigation, audio-device
-status, and start/stop lifecycle. P1.2 adds Sardine-compatible editor
-evaluation on every desktop platform: press **Ctrl+Return** to evaluate the
-current blank-line-delimited code block, or **Shift+Return** to evaluate the
-current line. The Execute button evaluates the current block. A ready
-instrument channel is still required before notes can be heard.
+At this P1.2 stage, the app verifies the window, tab navigation, audio-device
+status, and start/stop lifecycle. It evaluates editor requests on a dedicated
+embedded-Python thread: press **Ctrl+Return** to evaluate the current
+blank-line-delimited code block, or **Shift+Return** to evaluate the current
+line. The Execute button evaluates the current block. A ready instrument
+channel is still required before notes can be heard, so the default `bass`
+example deliberately reports `FP_TARGET_UNAVAILABLE`.
 
 On macOS, build the real VST3 fixture with `cmake --preset juce-fixture-macos`
 then `cmake --build --preset juce-fixture-macos --target FishpondFixtureInstrument_VST3`.
