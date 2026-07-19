@@ -33,8 +33,10 @@ int main(int argc, char** argv)
     }
     if (test == "clock-state") {
         const auto invalidTempo = runtime.evaluate("clock.bpm = 0");
-        return runtime.evaluate("clock.bpm = 126; clock.advance(4.5)").accepted
+        const auto tempoChange = runtime.evaluate("clock.bpm = 126; clock.advance(4.5)");
+        return tempoChange.accepted && tempoChange.changedTempoBpm && *tempoChange.changedTempoBpm == 126.0
             && runtime.evaluate("assert clock.tempo == 126 and clock.bar == 1 and clock.phase == 0.5").accepted
+            && runtime.evaluate("clock.tempo *= 2").changedTempoBpm == std::optional<double>(252.0)
             && runtime.evaluate("clock.pause(); clock.advance(2); assert clock.beat == 4.5").accepted
             && runtime.evaluate("clock.start(); clock.advance(1.5); clock.stop(); assert not clock.running and clock.beat == 0").accepted
             && ! invalidTempo.accepted && invalidTempo.diagnostic.find("FP_TEMPO_INVALID") != std::string::npos ? 0 : 1;

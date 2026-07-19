@@ -2,6 +2,8 @@
 
 #include <Python.h>
 
+#include <optional>
+
 namespace fishpond {
 namespace {
 std::string pythonError()
@@ -22,6 +24,23 @@ std::string pythonError()
     PyErr_Clear();
     Py_XDECREF(text); Py_XDECREF(type); Py_XDECREF(value); Py_XDECREF(traceback);
     return result;
+}
+
+std::optional<double> clockTempo(PyObject* globals)
+{
+    auto* clock = PyDict_GetItemString(globals, "clock");
+    if (clock == nullptr)
+        return std::nullopt;
+    auto* bpm = PyObject_GetAttrString(clock, "bpm");
+    if (bpm == nullptr) {
+        PyErr_Clear();
+        return std::nullopt;
+    }
+    const auto value = PyFloat_AsDouble(bpm);
+    const auto valid = ! PyErr_Occurred();
+    PyErr_Clear();
+    Py_DECREF(bpm);
+    return valid ? std::optional<double>(value) : std::nullopt;
 }
 }
 
@@ -54,8 +73,8 @@ EmbeddedPythonRuntime::EmbeddedPythonRuntime()
             "        return self._bpm\n"
             "    @bpm.setter\n"
             "    def bpm(self, value):\n"
-            "        if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:\n"
-            "            raise ValueError('FP_TEMPO_INVALID: bpm must be a positive number')\n"
+            "        if not isinstance(value, (int, float)) or isinstance(value, bool) or not 30 <= value <= 300:\n"
+            "            raise ValueError('FP_TEMPO_INVALID: bpm must be between 30 and 300')\n"
             "        self._bpm = float(value)\n"
             "    tempo = bpm\n"
             "    @property\n"
@@ -135,6 +154,7 @@ PythonEvaluationResult EmbeddedPythonRuntime::evaluate(const std::string& source
     if (! isReady)
         return { false, diagnostic };
     const auto state = PyGILState_Ensure();
+    const auto priorTempo = clockTempo(static_cast<PyObject*>(globals));
     PyObject* result = PyRun_StringFlags(source.c_str(), Py_file_input,
                                          static_cast<PyObject*>(globals), static_cast<PyObject*>(globals), nullptr);
     if (result == nullptr) {
@@ -143,8 +163,9 @@ PythonEvaluationResult EmbeddedPythonRuntime::evaluate(const std::string& source
         return { false, diagnostic };
     }
     Py_DECREF(result);
+    const auto currentTempo = clockTempo(static_cast<PyObject*>(globals));
     PyGILState_Release(state);
     diagnostic.clear();
-    return { true, "Executed" };
+    return { true, "Executed", currentTempo != priorTempo ? currentTempo : std::nullopt };
 }
 }

@@ -112,6 +112,12 @@ void MainComponent::timerCallback()
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
             continue;
         }
+        if (completion.result.changedTempoBpm) {
+            tempoSlider.setValue(*completion.result.changedTempoBpm, juce::dontSendNotification);
+            tempoLabel.setText(juce::String(*completion.result.changedTempoBpm, 0) + " BPM",
+                               juce::dontSendNotification);
+            updateSchedulerTiming();
+        }
         const auto command = juce::String(completion.source).trim();
         if (command == "silence()" || command == "panic()") {
             bassScheduler.clear();

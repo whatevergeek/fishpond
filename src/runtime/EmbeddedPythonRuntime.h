@@ -1,11 +1,13 @@
 #pragma once
 
+#include <optional>
 #include <string>
 
 namespace fishpond {
 struct PythonEvaluationResult {
     bool accepted {};
     std::string diagnostic;
+    std::optional<double> changedTempoBpm;
 };
 
 class EmbeddedPythonRuntime {
