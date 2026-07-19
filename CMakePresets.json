@@ -46,23 +46,6 @@
     },
     {
       "name": "app-macos",
-      "displayName": "Fishpond app (macOS)",
-      "inherits": "base",
-      "generator": "Xcode",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "FISHPOND_FETCH_JUCE": "ON",
-        "FISHPOND_BUILD_APP": "ON",
-        "BUILD_TESTING": "OFF"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      }
-    },
-    {
-      "name": "app-macos",
       "displayName": "Fishpond desktop app (macOS)",
       "inherits": "base",
       "generator": "Xcode",
@@ -145,10 +128,6 @@
     {
       "name": "juce-fixture-macos",
       "configurePreset": "juce-fixture-macos"
-    },
-    {
-      "name": "app-macos",
-      "configurePreset": "app-macos"
     },
     {
       "name": "app-macos",

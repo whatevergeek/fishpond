@@ -3,12 +3,18 @@ juce_add_gui_app(FishpondApp
 )
 
 target_sources(FishpondApp PRIVATE
-    FishpondApplication.cpp
+    Main.cpp
+    MainComponent.cpp
+    "${PROJECT_SOURCE_DIR}/src/AudioShell.cpp"
 )
 
 target_link_libraries(FishpondApp PRIVATE
     fishpond_build_config
     juce::juce_audio_utils
+)
+
+target_include_directories(FishpondApp PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
 )
 
 target_compile_definitions(FishpondApp PRIVATE
