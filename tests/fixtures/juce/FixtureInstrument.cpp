@@ -17,7 +17,7 @@ void FixtureInstrument::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         if (message.isNoteOn()) {
             phase = 0.0;
             frequency = 440.0 * std::pow(2.0, (message.getNoteNumber() - 69) / 12.0);
-            amplitude = 0.15f * message.getVelocity();
+            amplitude = 0.15f * message.getFloatVelocity();
             remainingToneSamples = static_cast<int>(sampleRate * 2.0);
         } else if (message.isNoteOff())
             remainingToneSamples = 0;
