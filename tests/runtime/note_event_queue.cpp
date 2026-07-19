@@ -1,4 +1,5 @@
 #include "runtime/AudioEventDispatcher.h"
+#include "runtime/BassPlayerScheduler.h"
 #include "runtime/NoteEventProducer.h"
 
 #include <iostream>
@@ -82,6 +83,24 @@ int main(int argc, char** argv)
         return producer.schedule({ 0, 100, 48, 60, 90, 1 }) == fishpond::NoteSubmitResult::invalid
             && producer.schedule({ 7, 100, 0, 60, 90, 1 }) == fishpond::NoteSubmitResult::invalid
             && producer.schedule({ 7, 100, 48, 60, 90, 17 }) == fishpond::NoteSubmitResult::invalid ? 0 : 1;
+    }
+
+    if (test == "scheduler-timing") {
+        fishpond::NoteEventQueue<16> scheduledQueue;
+        fishpond::BassPlayerScheduler<16> scheduler(scheduledQueue);
+        if (! scheduler.setTiming({ 44'100.0, 128, 60.0 })
+            || scheduler.setTiming({ 0.0, 128, 60.0 })
+            || ! scheduler.replace({ 36, 48 }, 0.5, 1'000))
+            return 1;
+        scheduler.pump(1'000);
+        if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOn
+            || received.targetSampleFrame != 1'128 || received.midiNote != 36)
+            return 1;
+        if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOff
+            || received.targetSampleFrame != 23'178 || received.midiNote != 36)
+            return 1;
+        return scheduledQueue.tryPop(received) && received.type == fishpond::NoteEventType::noteOn
+            && received.targetSampleFrame == 23'178 && received.midiNote == 48 ? 0 : 1;
     }
 
     return 2;

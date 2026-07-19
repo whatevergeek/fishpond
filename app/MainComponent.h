@@ -2,9 +2,9 @@
 
 #include "AudioShell.h"
 #include "host/ControlledVST3Bass.h"
+#include "runtime/AsyncBassScheduler.h"
 #include "runtime/PythonExecutionWorker.h"
 #include "runtime/AudioEventDispatcher.h"
-#include "runtime/NoteEventProducer.h"
 #include "runtime/Runtime.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -28,7 +28,6 @@ private:
     bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
     void executeEditorText(const juce::String& source);
     void timerCallback() override;
-    void scheduleActiveBassPlayer();
     juce::String currentCodeBlock() const;
     juce::String currentLine() const;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
@@ -41,14 +40,10 @@ private:
     fishpond::Runtime runtime;
     fishpond::PythonExecutionWorker pythonWorker;
     fishpond::RuntimeNoteEventQueue noteQueue;
-    fishpond::NoteEventProducer<8192> noteProducer { noteQueue };
     fishpond::AudioEventDispatcher<8192> noteDispatcher;
     std::atomic<std::uint64_t> renderFrame {};
+    fishpond::AsyncBassScheduler<8192> bassScheduler { noteQueue, renderFrame };
     std::uint64_t observedPanic {};
-    std::vector<int> activeBassNotes;
-    std::uint32_t activeBassPeriodFrames {};
-    std::uint64_t nextBassFrame {};
-    std::size_t nextBassNote {};
     juce::MidiBuffer bassMidi;
     std::unique_ptr<fishpond::ControlledVST3Bass> bass;
     juce::AudioDeviceManager deviceManager;

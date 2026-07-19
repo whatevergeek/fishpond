@@ -103,9 +103,7 @@ void MainComponent::timerCallback()
         }
         const auto command = juce::String(completion.source).trim();
         if (command == "silence()" || command == "panic()") {
-            activeBassNotes.clear();
-            nextBassNote = 0;
-            noteQueue.requestPanic();
+            bassScheduler.clear();
             diagnostics.setText(command == "panic()" ? "Panic: cleared Bass events" : "Silenced active players",
                                 juce::dontSendNotification);
             continue;
@@ -120,34 +118,14 @@ void MainComponent::timerCallback()
                     diagnostics.setText("FP_PATTERN_VALUE_INVALID: p must be a positive number", juce::dontSendNotification);
                     continue;
                 }
-                activeBassNotes = notes;
-                activeBassPeriodFrames = static_cast<std::uint32_t>(*periodBeats * 24'000.0);
-                nextBassFrame = renderFrame.load() + 512;
-                nextBassNote = 0;
-                scheduleActiveBassPlayer();
-                diagnostics.setText("Playing " + juce::String(activeBassNotes.size()) + " Bass-note pattern",
+                bassScheduler.replace(notes, *periodBeats);
+                diagnostics.setText("Playing " + juce::String(notes.size()) + " Bass-note pattern",
                                     juce::dontSendNotification);
             } else
                 diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
         } else {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
         }
-    }
-    scheduleActiveBassPlayer();
-}
-
-void MainComponent::scheduleActiveBassPlayer()
-{
-    if (activeBassNotes.empty() || activeBassPeriodFrames == 0)
-        return;
-    const auto horizon = renderFrame.load() + 48'000;
-    while (nextBassFrame < horizon) {
-        const auto note = activeBassNotes[nextBassNote++ % activeBassNotes.size()];
-        if (noteProducer.schedule({ 1, nextBassFrame, activeBassPeriodFrames,
-                                   static_cast<std::uint8_t>(note), 100, 1 })
-            != fishpond::NoteSubmitResult::queued)
-            return;
-        nextBassFrame += activeBassPeriodFrames;
     }
 }
 
@@ -200,6 +178,8 @@ void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
     }
 
     audioShell.start();
+    bassScheduler.setTiming({ device->getCurrentSampleRate(),
+                              static_cast<std::uint32_t>(device->getCurrentBufferSizeSamples()), 120.0 });
     deviceStatus.setText("Running " + device->getName() + " — "
                              + juce::String(device->getCurrentSampleRate(), 0) + " Hz, "
                              + juce::String(device->getCurrentBufferSizeSamples()) + " samples",

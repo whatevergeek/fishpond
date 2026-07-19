@@ -71,6 +71,7 @@ set(FISHPOND_P1_EVENT_BOUNDARY_TESTS
     IT_NoteEventDispatchOrdering
     IT_NoteEventNoteOffReservation
     UT_NoteEventValidation
+    IT_BassSchedulerDeviceTiming
 )
 foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
     if(test_id STREQUAL "UT_NoteEventQueueCapacity")
@@ -88,6 +89,9 @@ foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
     elseif(test_id STREQUAL "UT_NoteEventValidation")
         set(test_argument "note-validation")
         set(test_labels "UT;P1;FR-041;FR-052")
+    elseif(test_id STREQUAL "IT_BassSchedulerDeviceTiming")
+        set(test_argument "scheduler-timing")
+        set(test_labels "IT;P1;FR-016;FR-040;FR-052")
     else()
         set(test_argument "panic")
         set(test_labels "IT;P1;FR-018;FR-052")
