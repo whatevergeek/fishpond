@@ -17,19 +17,20 @@ MainComponent::MainComponent()
     liveCodingPanel.addAndMakeVisible(diagnostics);
     mixerPlaceholder.setText("Mixer - one controlled Bass VST3 channel", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
-    loadBassButton.onClick = [this] {
-        if (audioShell.state() == fishpond::AudioShellState::running) {
-            mixerPlaceholder.setText("Stop audio before loading the Bass fixture", juce::dontSendNotification);
-            return;
-        }
-        bass = std::make_unique<fishpond::ControlledVST3Bass>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
-        std::string diagnostic;
-        const auto prepared = bass->prepareBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH), diagnostic);
-        const auto committed = prepared && bass->commitAtBlockBoundary(diagnostic);
-        mixerPlaceholder.setText(committed ? "Bass - controlled VST3 fixture ready" : diagnostic,
-                                 juce::dontSendNotification);
+    loadBassButton.onClick = [this] { loadBassBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH)); };
+    chooseBassButton.onClick = [this] {
+        bassPluginChooser = std::make_unique<juce::FileChooser>("Select a VST3 instrument", juce::File(), "*.vst3");
+        bassPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
+                                           | juce::FileBrowserComponent::canSelectDirectories,
+            [this] (const juce::FileChooser& chooser) {
+                const auto bundle = chooser.getResult();
+                bassPluginChooser.reset();
+                if (bundle != juce::File())
+                    loadBassBundle(bundle);
+            });
     };
     mixerPlaceholder.addAndMakeVisible(loadBassButton);
+    mixerPlaceholder.addAndMakeVisible(chooseBassButton);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
     tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);
 
@@ -67,6 +68,20 @@ MainComponent::MainComponent()
     addAndMakeVisible(tempoLabel);
     addAndMakeVisible(tempoSlider);
     setSize(1040, 700);
+}
+
+void MainComponent::loadBassBundle(const juce::File& bundle)
+{
+        if (audioShell.state() == fishpond::AudioShellState::running) {
+            mixerPlaceholder.setText("Stop audio before loading a Bass VST3", juce::dontSendNotification);
+            return;
+        }
+        bass = std::make_unique<fishpond::ControlledVST3Bass>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
+        std::string diagnostic;
+        const auto prepared = bass->prepareBundle(bundle, diagnostic);
+        const auto committed = prepared && bass->commitAtBlockBoundary(diagnostic);
+        mixerPlaceholder.setText(committed ? "Bass VST3 ready: " + bundle.getFileName() : diagnostic,
+                                 juce::dontSendNotification);
 }
 
 MainComponent::~MainComponent()
@@ -185,7 +200,9 @@ void MainComponent::resized()
     diagnostics.setBounds(liveArea.removeFromBottom(84));
     liveCodingEditor.setBounds(liveArea);
     auto mixerArea = mixerPlaceholder.getLocalBounds().reduced(8);
-    loadBassButton.setBounds(mixerArea.removeFromTop(32).removeFromLeft(160));
+    auto mixerActions = mixerArea.removeFromTop(32);
+    loadBassButton.setBounds(mixerActions.removeFromLeft(160));
+    chooseBassButton.setBounds(mixerActions.removeFromLeft(120));
 }
 
 void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
