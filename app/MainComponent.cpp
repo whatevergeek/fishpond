@@ -2,7 +2,7 @@
 
 MainComponent::MainComponent()
 {
-    liveCodingEditor.setMultiLine(true);
+    liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setText("# Ctrl+Return: evaluate block\n# Shift+Return: evaluate line\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
