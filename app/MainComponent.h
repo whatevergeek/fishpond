@@ -3,12 +3,15 @@
 #include "AudioShell.h"
 #include "host/ControlledVST3Bass.h"
 #include "runtime/PythonExecutionWorker.h"
+#include "runtime/AudioEventDispatcher.h"
+#include "runtime/NoteEventProducer.h"
 #include "runtime/Runtime.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 
 #include <memory>
+#include <atomic>
 
 class MainComponent final : public juce::Component,
                             private juce::AudioIODeviceCallback,
@@ -35,6 +38,12 @@ private:
     fishpond::AudioShell audioShell;
     fishpond::Runtime runtime;
     fishpond::PythonExecutionWorker pythonWorker;
+    fishpond::RuntimeNoteEventQueue noteQueue;
+    fishpond::NoteEventProducer<8192> noteProducer { noteQueue };
+    fishpond::AudioEventDispatcher<8192> noteDispatcher;
+    std::atomic<std::uint64_t> renderFrame {};
+    std::uint64_t observedPanic {};
+    juce::MidiBuffer bassMidi;
     std::unique_ptr<fishpond::ControlledVST3Bass> bass;
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };

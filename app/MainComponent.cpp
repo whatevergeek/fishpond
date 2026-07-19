@@ -48,6 +48,7 @@ MainComponent::MainComponent()
 
     deviceStatus.setText("Audio engine stopped", juce::dontSendNotification);
     deviceManager.addAudioCallback(this);
+    bassMidi.ensureSize(4096);
     startTimerHz(30);
     addAndMakeVisible(tabs);
     addAndMakeVisible(deviceStatus);
@@ -100,8 +101,17 @@ void MainComponent::timerCallback()
             continue;
         }
         if (completion.source.find(">> n(") != std::string::npos) {
-            const auto validation = runtime.evaluateEditorText(completion.source);
-            diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
+            const auto bassReady = bass != nullptr && bass->state() == fishpond::SingleChannelState::ready;
+            const auto validation = runtime.evaluateEditorText(completion.source, bassReady);
+            if (validation.accepted) {
+                const auto note = runtime.firstNoteFromEditorText(completion.source);
+                const auto outcome = note ? noteProducer.schedule({ 1, renderFrame.load() + 512, 24'000,
+                                                                    static_cast<std::uint8_t>(*note), 100, 1 })
+                                          : fishpond::NoteSubmitResult::invalid;
+                diagnostics.setText(outcome == fishpond::NoteSubmitResult::queued ? validation.diagnostic
+                                    : "FP_EVENT_QUEUE_FULL: Bass note was not scheduled", juce::dontSendNotification);
+            } else
+                diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
         } else {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
         }
@@ -173,9 +183,19 @@ void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, f
                                                       const juce::AudioIODeviceCallbackContext&)
 {
     juce::AudioBuffer<float> audio(output, outputChannels, samples);
-    juce::MidiBuffer midi;
+    bassMidi.clear();
+    const auto start = renderFrame.load();
+    noteDispatcher.drain(noteQueue, start, static_cast<std::uint32_t>(samples), observedPanic,
+        [this] (const fishpond::NoteEvent& event, std::uint32_t offset) {
+            if (event.type == fishpond::NoteEventType::noteOn)
+                bassMidi.addEvent(juce::MidiMessage::noteOn(event.midiChannel, event.midiNote,
+                                                             event.velocity / 127.0f), static_cast<int>(offset));
+            else if (event.type == fishpond::NoteEventType::noteOff)
+                bassMidi.addEvent(juce::MidiMessage::noteOff(event.midiChannel, event.midiNote), static_cast<int>(offset));
+        });
     if (bass != nullptr)
-        bass->process(audio, midi);
+        bass->process(audio, bassMidi);
     else
         audio.clear();
+    renderFrame.store(start + samples);
 }

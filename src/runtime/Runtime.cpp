@@ -142,7 +142,7 @@ private:
 };
 }
 
-EvaluationResult Runtime::evaluateEditorText(const std::string& source) const
+EvaluationResult Runtime::evaluateEditorText(const std::string& source, bool bassReady) const
 {
     const auto assignment = source.find(">> n(");
     const auto firstQuote = source.find('"', assignment == std::string::npos ? 0 : assignment);
@@ -160,7 +160,19 @@ EvaluationResult Runtime::evaluateEditorText(const std::string& source) const
         return { false, "FP_PATTERN_VALUE_INVALID: notes and target must be valid" };
 
     const auto target = source.substr(targetQuote + 1, targetEnd - targetQuote - 1);
+    if (normalize(target) == "bass" && bassReady)
+        return { true, "Scheduled Bass note" };
     return { false, "FP_TARGET_UNAVAILABLE: \"" + target + "\" has no ready instrument channel (arrives in P1.4)" };
+}
+
+std::optional<int> Runtime::firstNoteFromEditorText(const std::string& source) const
+{
+    const auto firstQuote = source.find('"');
+    const auto secondQuote = firstQuote == std::string::npos ? std::string::npos : source.find('"', firstQuote + 1);
+    if (firstQuote == std::string::npos || secondQuote == std::string::npos)
+        return std::nullopt;
+    const auto notes = parseNotes(source.substr(firstQuote + 1, secondQuote - firstQuote - 1));
+    return notes.empty() ? std::nullopt : std::optional<int>(notes.front());
 }
 
 bool Runtime::playerReplacementContract() const
