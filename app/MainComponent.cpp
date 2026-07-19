@@ -322,6 +322,10 @@ void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, f
                                                              event.velocity / 127.0f), static_cast<int>(offset));
             else if (event.type == fishpond::NoteEventType::noteOff)
                 bassMidi.addEvent(juce::MidiMessage::noteOff(event.midiChannel, event.midiNote), static_cast<int>(offset));
+            else if (event.type == fishpond::NoteEventType::allNotesOff) {
+                bassMidi.addEvent(juce::MidiMessage::allNotesOff(event.midiChannel), static_cast<int>(offset));
+                bassMidi.addEvent(juce::MidiMessage::allSoundOff(event.midiChannel), static_cast<int>(offset));
+            }
         });
     if (bass != nullptr)
         bass->process(audio, bassMidi);

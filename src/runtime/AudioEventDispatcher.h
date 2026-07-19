@@ -25,7 +25,11 @@ public:
         if (queue.consumePanic(observedPanic)) {
             queue.discardPendingFromConsumer();
             pendingCount = 0;
-            return { 0, 0, true };
+            // A panic discards scheduled note-offs as well as note-ons. Emit an
+            // explicit safety event so a hosted instrument cannot retain an
+            // already-sounding note.
+            handler(NoteEvent { 0, blockStart, 0, 0, 0, 0, 1, NoteEventType::allNotesOff }, 0);
+            return { 1, 0, true };
         }
 
         const auto blockEnd = blockStart + blockFrames;

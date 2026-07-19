@@ -36,9 +36,18 @@ int main(int argc, char** argv)
             return 1;
         std::uint64_t observedGeneration = 0;
         queue.requestPanic();
-        if (! queue.consumePanic(observedGeneration) || observedGeneration != 1)
+        fishpond::AudioEventDispatcher<2> dispatcher;
+        fishpond::NoteEvent panicEvent;
+        bool receivedPanicEvent = false;
+        const auto result = dispatcher.drain(queue, 80, 64, observedGeneration,
+            [&] (const fishpond::NoteEvent& ready, std::uint32_t offset) {
+                panicEvent = ready;
+                receivedPanicEvent = offset == 0;
+            });
+        if (! (result.panic && result.dispatched == 1 && receivedPanicEvent
+               && panicEvent.type == fishpond::NoteEventType::allNotesOff
+               && panicEvent.midiChannel == 1 && observedGeneration == 1))
             return 1;
-        queue.discardPendingFromConsumer();
         return ! queue.tryPop(received) && ! queue.consumePanic(observedGeneration) ? 0 : 1;
     }
 
