@@ -71,6 +71,7 @@ if(TARGET fishpond_embedded_python)
     add_test(NAME UT_EmbeddedPythonNamedPlayerReplacement COMMAND fishpond_p1_embedded_python player-replacement)
     add_test(NAME UT_EmbeddedPythonSilenceAndPanic COMMAND fishpond_p1_embedded_python silence-panic)
     add_test(NAME UT_EmbeddedPythonTargetRequired COMMAND fishpond_p1_embedded_python target-required)
+    add_test(NAME UT_EmbeddedPythonClockState COMMAND fishpond_p1_embedded_python clock-state)
     add_test(NAME IT_EmbeddedPythonSyntaxLocation COMMAND fishpond_p1_embedded_python syntax-location)
     add_test(NAME IT_PythonExecutionWorkerOffCallerThread COMMAND fishpond_p1_python_worker)
     set_tests_properties(IT_EmbeddedPythonPersistentNamespace IT_EmbeddedPythonErrorIsolation
@@ -78,6 +79,7 @@ if(TARGET fishpond_embedded_python)
         PROPERTIES LABELS "IT;P1;FR-012;FR-013")
     set_tests_properties(UT_EmbeddedPythonNamedPlayerReplacement UT_EmbeddedPythonSilenceAndPanic
         UT_EmbeddedPythonTargetRequired PROPERTIES LABELS "UT;P1;FR-012;FR-013;SARDINE-COMPAT")
+    set_tests_properties(UT_EmbeddedPythonClockState PROPERTIES LABELS "UT;P1;FR-016")
 endif()
 
 set(FISHPOND_CTEST_CONFIG_ARGUMENTS)

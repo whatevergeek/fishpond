@@ -31,6 +31,14 @@ int main(int argc, char** argv)
         const auto result = runtime.evaluate("Pa >> n('C2')");
         return ! result.accepted && result.diagnostic.find("FP_TARGET_REQUIRED") != std::string::npos ? 0 : 1;
     }
+    if (test == "clock-state") {
+        const auto invalidTempo = runtime.evaluate("clock.bpm = 0");
+        return runtime.evaluate("clock.bpm = 126; clock.advance(4.5)").accepted
+            && runtime.evaluate("assert clock.tempo == 126 and clock.bar == 1 and clock.phase == 0.5").accepted
+            && runtime.evaluate("clock.pause(); clock.advance(2); assert clock.beat == 4.5").accepted
+            && runtime.evaluate("clock.start(); clock.advance(1.5); clock.stop(); assert not clock.running and clock.beat == 0").accepted
+            && ! invalidTempo.accepted && invalidTempo.diagnostic.find("FP_TEMPO_INVALID") != std::string::npos ? 0 : 1;
+    }
     if (test == "syntax-location") {
         const auto result = runtime.evaluate("tempo =\n");
         return ! result.accepted && result.diagnostic.find("line 1") != std::string::npos ? 0 : 1;
