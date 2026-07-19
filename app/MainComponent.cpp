@@ -19,8 +19,20 @@ MainComponent::MainComponent()
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
     loadBassButton.onClick = [this] { loadBassBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH)); };
     chooseBassButton.onClick = [this] {
-        const auto vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
-                                    .getChildFile("Library/Audio/Plug-Ins/VST3");
+       #if JUCE_MAC
+        auto vst3Folder = juce::File("/Library/Audio/Plug-Ins/VST3");
+        if (! vst3Folder.exists())
+            vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                             .getChildFile("Library/Audio/Plug-Ins/VST3");
+       #elif JUCE_WINDOWS
+        auto vst3Folder = juce::File("C:\\Program Files\\Common Files\\VST3");
+       #elif JUCE_LINUX
+        auto vst3Folder = juce::File("/usr/lib/vst3");
+        if (! vst3Folder.exists())
+            vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile(".vst3");
+       #else
+        auto vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+       #endif
         bassPluginChooser = std::make_unique<juce::FileChooser>("Select a VST3 instrument", vst3Folder, "*.vst3");
         bassPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
                                            | juce::FileBrowserComponent::canSelectFiles
