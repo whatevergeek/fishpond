@@ -1,4 +1,5 @@
 #include "runtime/AudioEventDispatcher.h"
+#include "runtime/NoteEventProducer.h"
 
 #include <iostream>
 #include <string>
@@ -59,6 +60,28 @@ int main(int argc, char** argv)
             && emitted == 3 && emittedSequences[0] == 3 && emittedSequences[1] == 5
             && emittedSequences[2] == 2 && offsets[0] == 10 && offsets[1] == 10 && offsets[2] == 15
             && dispatchQueue.tryPop(received) && received.sequence == 4 ? 0 : 1;
+    }
+
+    if (test == "note-reservation") {
+        fishpond::NoteEventQueue<2> noteQueue;
+        fishpond::NoteEventProducer<2> producer(noteQueue);
+        const fishpond::ScheduledNote note { 7, 100, 48, 60, 90, 1 };
+        if (producer.schedule(note) != fishpond::NoteSubmitResult::queued
+            || producer.schedule(note) != fishpond::NoteSubmitResult::queueFull)
+            return 1;
+        if (! noteQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOn
+            || received.targetSampleFrame != 100 || received.sequence != 0)
+            return 1;
+        return noteQueue.tryPop(received) && received.type == fishpond::NoteEventType::noteOff
+            && received.targetSampleFrame == 148 && received.sequence == 1 ? 0 : 1;
+    }
+
+    if (test == "note-validation") {
+        fishpond::NoteEventQueue<2> noteQueue;
+        fishpond::NoteEventProducer<2> producer(noteQueue);
+        return producer.schedule({ 0, 100, 48, 60, 90, 1 }) == fishpond::NoteSubmitResult::invalid
+            && producer.schedule({ 7, 100, 0, 60, 90, 1 }) == fishpond::NoteSubmitResult::invalid
+            && producer.schedule({ 7, 100, 48, 60, 90, 17 }) == fishpond::NoteSubmitResult::invalid ? 0 : 1;
     }
 
     return 2;

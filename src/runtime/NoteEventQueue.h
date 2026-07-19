@@ -89,6 +89,11 @@ public:
         return write >= read ? write - read : slotCount - read + write;
     }
 
+    std::size_t availableCapacityApproximate() const noexcept
+    {
+        return Capacity - sizeApproximate();
+    }
+
     static constexpr std::size_t capacity() noexcept { return Capacity; }
 
 private:
