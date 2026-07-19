@@ -1,5 +1,20 @@
 #include "MainComponent.h"
 
+namespace {
+class PluginEditorWindow final : public juce::DocumentWindow {
+public:
+    explicit PluginEditorWindow(juce::AudioProcessor& processor)
+        : DocumentWindow(processor.getName(), juce::Colours::darkgrey, juce::DocumentWindow::closeButton)
+    {
+        setUsingNativeTitleBar(true);
+        setContentOwned(processor.createEditorAndMakeActive(), true);
+        centreWithSize(getWidth(), getHeight());
+    }
+
+    void closeButtonPressed() override { setVisible(false); }
+};
+}
+
 MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true, true);
@@ -46,6 +61,8 @@ MainComponent::MainComponent()
     };
     mixerPlaceholder.addAndMakeVisible(loadBassButton);
     mixerPlaceholder.addAndMakeVisible(chooseBassButton);
+    openBassEditorButton.onClick = [this] { openBassEditor(); };
+    mixerPlaceholder.addAndMakeVisible(openBassEditorButton);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
     tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);
 
@@ -91,12 +108,29 @@ void MainComponent::loadBassBundle(const juce::File& bundle)
             mixerPlaceholder.setText("Stop audio before loading a Bass VST3", juce::dontSendNotification);
             return;
         }
+        bassEditorWindow.reset();
         bass = std::make_unique<fishpond::ControlledVST3Bass>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
         std::string diagnostic;
         const auto prepared = bass->prepareBundle(bundle, diagnostic);
         const auto committed = prepared && bass->commitAtBlockBoundary(diagnostic);
         mixerPlaceholder.setText(committed ? "Bass VST3 ready: " + bundle.getFileName() : diagnostic,
                                  juce::dontSendNotification);
+}
+
+void MainComponent::openBassEditor()
+{
+    auto* processor = bass != nullptr ? bass->activeProcessorForEditor() : nullptr;
+    if (processor == nullptr || bass->state() != fishpond::SingleChannelState::ready) {
+        mixerPlaceholder.setText("Load a Bass VST3 before opening its UI", juce::dontSendNotification);
+        return;
+    }
+    if (! processor->hasEditor()) {
+        mixerPlaceholder.setText("This VST3 does not provide a plugin UI", juce::dontSendNotification);
+        return;
+    }
+    bassEditorWindow = std::make_unique<PluginEditorWindow>(*processor);
+    bassEditorWindow->setVisible(true);
+    bassEditorWindow->toFront(true);
 }
 
 MainComponent::~MainComponent()
@@ -218,6 +252,7 @@ void MainComponent::resized()
     auto mixerActions = mixerArea.removeFromTop(32);
     loadBassButton.setBounds(mixerActions.removeFromLeft(160));
     chooseBassButton.setBounds(mixerActions.removeFromLeft(120));
+    openBassEditorButton.setBounds(mixerActions.removeFromLeft(130));
 }
 
 void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)

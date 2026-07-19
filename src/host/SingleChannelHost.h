@@ -30,6 +30,7 @@ public:
                                          juce::AudioProcessor*& retired,
                                          std::string& diagnostic) noexcept;
     juce::AudioProcessor* releaseActiveForWorker() noexcept { return active.release(); }
+    juce::AudioProcessor* activeProcessorForEditor() const noexcept { return active.get(); }
     void process(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi);
 
     SingleChannelState state() const noexcept { return channelState; }

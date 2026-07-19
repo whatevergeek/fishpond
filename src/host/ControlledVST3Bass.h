@@ -12,6 +12,7 @@ public:
     bool commitAtBlockBoundary(std::string& diagnostic);
     void process(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) { host.process(audio, midi); }
     SingleChannelState state() const noexcept { return host.state(); }
+    juce::AudioProcessor* activeProcessorForEditor() const noexcept { return host.activeProcessorForEditor(); }
 
 private:
     AudioConfiguration configuration;

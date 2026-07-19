@@ -28,6 +28,7 @@ private:
     bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
     void executeEditorText(const juce::String& source);
     void loadBassBundle(const juce::File& bundle);
+    void openBassEditor();
     void timerCallback() override;
     void updateSchedulerTiming();
     juce::String currentCodeBlock() const;
@@ -59,7 +60,9 @@ private:
     juce::Label mixerPlaceholder;
     juce::TextButton loadBassButton { "Load Bass fixture" };
     juce::TextButton chooseBassButton { "Load VST3..." };
+    juce::TextButton openBassEditorButton { "Open plugin UI" };
     std::unique_ptr<juce::FileChooser> bassPluginChooser;
+    std::unique_ptr<juce::DocumentWindow> bassEditorWindow;
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
     juce::Label tempoLabel { {}, "120 BPM" };
