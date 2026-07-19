@@ -58,7 +58,7 @@ private:
     juce::TextEditor diagnostics;
     juce::Label mixerPlaceholder;
     juce::TextButton loadBassButton { "Load Bass fixture" };
-    juce::TextButton chooseBassButton { "Load VST3…" };
+    juce::TextButton chooseBassButton { "Load VST3..." };
     std::unique_ptr<juce::FileChooser> bassPluginChooser;
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
