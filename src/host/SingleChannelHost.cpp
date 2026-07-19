@@ -30,12 +30,32 @@ bool SingleChannelHost::applyPreparedAtBlockBoundary(std::uint64_t preparedConfi
         diagnostic = "FP_GRAPH_MISSING: no prepared instrument graph";
         return false;
     }
+    auto* retired = static_cast<juce::AudioProcessor*>(nullptr);
+    if (! applyRawPreparedAtBlockBoundary(prepared.get(), preparedConfigurationVersion, retired, diagnostic))
+        return false;
+
+    prepared.release();
+    std::unique_ptr<juce::AudioProcessor> retiredOwner(retired);
+    return true;
+}
+
+bool SingleChannelHost::applyRawPreparedAtBlockBoundary(juce::AudioProcessor* processor,
+                                                         std::uint64_t preparedConfigurationVersion,
+                                                         juce::AudioProcessor*& retired,
+                                                         std::string& diagnostic) noexcept
+{
+    retired = nullptr;
+    if (processor == nullptr) {
+        diagnostic = "FP_GRAPH_MISSING: no prepared instrument graph";
+        return false;
+    }
     if (preparedConfigurationVersion != audioConfiguration.version) {
         diagnostic = "FP_GRAPH_STALE: audio configuration changed before graph commit";
         return false;
     }
 
-    active = std::move(prepared);
+    retired = active.release();
+    active.reset(processor);
     channelState = SingleChannelState::ready;
     diagnostic.clear();
     return true;

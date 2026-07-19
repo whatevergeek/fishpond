@@ -54,6 +54,20 @@ add_custom_target(run-single-channel-host-spike
     VERBATIM
 )
 
+add_executable(fishpond_graph_handoff_host_spike
+    GraphHandoffHostSpike.cpp
+    FixtureInstrument.cpp
+    "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"
+)
+target_include_directories(fishpond_graph_handoff_host_spike PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(fishpond_graph_handoff_host_spike PRIVATE juce::juce_audio_utils)
+
+add_custom_target(run-graph-handoff-host-spike
+    COMMAND fishpond_graph_handoff_host_spike
+    DEPENDS fishpond_graph_handoff_host_spike
+    VERBATIM
+)
+
 add_executable(fishpond_vst3_fixture_load_spike
     VST3FixtureLoadSpike.cpp
     "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"

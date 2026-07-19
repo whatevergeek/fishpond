@@ -24,6 +24,12 @@ public:
 
     bool prepareInstrument(std::unique_ptr<juce::AudioProcessor> processor, std::string& diagnostic);
     bool applyPreparedAtBlockBoundary(std::uint64_t preparedConfigurationVersion, std::string& diagnostic);
+    juce::AudioProcessor* releasePrepared() noexcept { return prepared.release(); }
+    bool applyRawPreparedAtBlockBoundary(juce::AudioProcessor* processor,
+                                         std::uint64_t preparedConfigurationVersion,
+                                         juce::AudioProcessor*& retired,
+                                         std::string& diagnostic) noexcept;
+    juce::AudioProcessor* releaseActiveForWorker() noexcept { return active.release(); }
     void process(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi);
 
     SingleChannelState state() const noexcept { return channelState; }
