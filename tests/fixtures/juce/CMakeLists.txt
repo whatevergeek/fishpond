@@ -28,6 +28,14 @@ add_executable(fishpond_juce_lifecycle_spike
 )
 target_link_libraries(fishpond_juce_lifecycle_spike PRIVATE juce::juce_audio_utils)
 
+add_executable(fishpond_single_channel_host_spike
+    SingleChannelHostSpike.cpp
+    FixtureInstrument.cpp
+    "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"
+)
+target_include_directories(fishpond_single_channel_host_spike PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(fishpond_single_channel_host_spike PRIVATE juce::juce_audio_utils)
+
 if(UNIX AND NOT APPLE)
     find_package(CURL REQUIRED)
     target_link_libraries(FishpondFixtureInstrument PRIVATE CURL::libcurl)
@@ -37,5 +45,11 @@ endif()
 add_custom_target(run-juce-lifecycle-spike
     COMMAND fishpond_juce_lifecycle_spike
     DEPENDS fishpond_juce_lifecycle_spike
+    VERBATIM
+)
+
+add_custom_target(run-single-channel-host-spike
+    COMMAND fishpond_single_channel_host_spike
+    DEPENDS fishpond_single_channel_host_spike
     VERBATIM
 )
