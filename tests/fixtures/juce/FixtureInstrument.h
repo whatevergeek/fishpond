@@ -31,4 +31,7 @@ public:
 private:
     bool prepared = false;
     bool released = false;
+    double sampleRate = 48'000.0;
+    double phase = 0.0;
+    int remainingToneSamples = 0;
 };

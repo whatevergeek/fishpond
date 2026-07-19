@@ -25,7 +25,7 @@ int main()
     juce::MidiBuffer midi;
     midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
     host.process(audio, midi);
-    const auto producedAudio = std::abs(audio.getSample(0, 0) - 0.125f) < 0.0001f;
+    const auto producedAudio = std::abs(audio.getSample(0, 1)) > 0.001f;
 
     host.reconfigure({ 48'000.0, 64, 2 });
     const auto replacementPrepared = host.prepareInstrument(std::make_unique<FixtureInstrument>(), diagnostic);
@@ -35,7 +35,7 @@ int main()
     juce::MidiBuffer retainedMidi;
     retainedMidi.addEvent(juce::MidiMessage::noteOn(1, 64, 1.0f), 0);
     host.process(retainedAudio, retainedMidi);
-    const auto retainedGraph = std::abs(retainedAudio.getSample(0, 0) - 0.125f) < 0.0001f;
+    const auto retainedGraph = std::abs(retainedAudio.getSample(0, 1)) > 0.001f;
 
     return require(prepared, "fixture preparation failed")
         && require(accepted && host.state() == fishpond::SingleChannelState::ready,

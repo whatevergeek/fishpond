@@ -26,6 +26,6 @@ int main()
     bass.process(audio, midi);
 
     return require(prepared && accepted, "loaded VST3 was not prepared and committed")
-        && require(std::abs(audio.getSample(0, 0) - 0.125f) < 0.0001f,
+        && require(std::abs(audio.getSample(0, 1)) > 0.001f,
                    "MIDI did not reach the loaded VST3") ? 0 : 1;
 }
