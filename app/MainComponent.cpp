@@ -3,10 +3,22 @@
 MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true);
-    liveCodingEditor.setText("# P1.1 audio shell\n# Live coding arrives in P1.2\n");
+    liveCodingEditor.setText("# Select code and press Execute selection\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    diagnostics.setMultiLine(true);
+    diagnostics.setReadOnly(true);
+    diagnostics.setText("Ready. Add an instrument channel in P1.4 before notes can be heard.", juce::dontSendNotification);
+    executeButton.onClick = [this] {
+        const auto selection = liveCodingEditor.getHighlightedText();
+        const auto source = selection.isNotEmpty() ? selection : liveCodingEditor.getText();
+        const auto result = runtime.evaluateEditorText(source.toStdString());
+        diagnostics.setText(result.diagnostic, juce::dontSendNotification);
+    };
+    liveCodingPanel.addAndMakeVisible(liveCodingEditor);
+    liveCodingPanel.addAndMakeVisible(executeButton);
+    liveCodingPanel.addAndMakeVisible(diagnostics);
     mixerPlaceholder.setText("Mixer - one Bass channel arrives in P1.4", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
-    tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingEditor, false);
+    tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
     tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);
 
     startStopButton.onClick = [this] {
@@ -46,6 +58,11 @@ void MainComponent::resized()
     tempoLabel.setBounds(transport.removeFromLeft(90));
     startStopButton.setBounds(transport.removeFromRight(120));
     tabs.setBounds(area);
+    auto liveArea = liveCodingPanel.getLocalBounds().reduced(8);
+    auto actions = liveArea.removeFromTop(32);
+    executeButton.setBounds(actions.removeFromLeft(160));
+    diagnostics.setBounds(liveArea.removeFromBottom(84));
+    liveCodingEditor.setBounds(liveArea);
 }
 
 void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)

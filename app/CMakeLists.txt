@@ -6,6 +6,7 @@ target_sources(FishpondApp PRIVATE
     Main.cpp
     MainComponent.cpp
     "${PROJECT_SOURCE_DIR}/src/AudioShell.cpp"
+    "${PROJECT_SOURCE_DIR}/src/runtime/Runtime.cpp"
 )
 
 target_link_libraries(FishpondApp PRIVATE

@@ -1,8 +1,16 @@
 #pragma once
 
+#include <string>
+
 namespace fishpond {
+struct EvaluationResult {
+    bool accepted {};
+    std::string diagnostic;
+};
+
 class Runtime {
 public:
+    EvaluationResult evaluateEditorText(const std::string& source) const;
     bool playerReplacementContract() const;
     bool patternContract() const;
     bool periodContract() const;
