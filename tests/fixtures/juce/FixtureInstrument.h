@@ -33,5 +33,6 @@ private:
     bool released = false;
     double sampleRate = 48'000.0;
     double phase = 0.0;
+    double frequency = 440.0;
     int remainingToneSamples = 0;
 };

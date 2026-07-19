@@ -15,6 +15,7 @@ void FixtureInstrument::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     for (const auto metadata : midi)
         if (metadata.getMessage().isNoteOn()) {
             phase = 0.0;
+            frequency = 440.0 * std::pow(2.0, (metadata.getMessage().getNoteNumber() - 69) / 12.0);
             remainingToneSamples = static_cast<int>(sampleRate * 0.25);
         }
     if (! prepared || released)
@@ -23,7 +24,7 @@ void FixtureInstrument::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         const auto value = static_cast<float>(0.15 * std::sin(phase));
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
             buffer.setSample(channel, sample, value);
-        phase += juce::MathConstants<double>::twoPi * 440.0 / sampleRate;
+        phase += juce::MathConstants<double>::twoPi * frequency / sampleRate;
         --remainingToneSamples;
     }
 }
