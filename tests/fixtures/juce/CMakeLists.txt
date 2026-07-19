@@ -74,9 +74,14 @@ add_executable(fishpond_vst3_fixture_load_spike
 )
 target_include_directories(fishpond_vst3_fixture_load_spike PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(fishpond_vst3_fixture_load_spike PRIVATE juce::juce_audio_utils)
+if(APPLE)
+    set(FISHPOND_FIXTURE_VST3_LOAD_PATH "$<TARGET_BUNDLE_DIR:FishpondFixtureInstrument_VST3>")
+else()
+    set(FISHPOND_FIXTURE_VST3_LOAD_PATH "$<TARGET_FILE:FishpondFixtureInstrument_VST3>")
+endif()
 target_compile_definitions(fishpond_vst3_fixture_load_spike PRIVATE
     JUCE_PLUGINHOST_VST3=1
-    FISHPOND_FIXTURE_VST3_PATH="$<TARGET_BUNDLE_DIR:FishpondFixtureInstrument_VST3>"
+    FISHPOND_FIXTURE_VST3_PATH="${FISHPOND_FIXTURE_VST3_LOAD_PATH}"
 )
 add_dependencies(fishpond_vst3_fixture_load_spike FishpondFixtureInstrument_VST3)
 
