@@ -53,7 +53,23 @@
       "cacheVariables": {
         "FISHPOND_FETCH_JUCE": "ON",
         "FISHPOND_BUILD_APP": "ON",
+        "FISHPOND_ENABLE_EMBEDDED_PYTHON": "ON",
         "BUILD_TESTING": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "python-runtime-macos",
+      "displayName": "Embedded Python runtime tests (macOS)",
+      "inherits": "base",
+      "generator": "Unix Makefiles",
+      "cacheVariables": {
+        "FISHPOND_ENABLE_EMBEDDED_PYTHON": "ON",
+        "Python3_ROOT_DIR": "/opt/homebrew/opt/python@3.12"
       },
       "condition": {
         "type": "equals",
@@ -132,6 +148,10 @@
     {
       "name": "app-macos",
       "configurePreset": "app-macos"
+    },
+    {
+      "name": "python-runtime-macos",
+      "configurePreset": "python-runtime-macos"
     },
     {
       "name": "juce-fixture-windows",

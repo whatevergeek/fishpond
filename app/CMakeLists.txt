@@ -11,6 +11,7 @@ target_sources(FishpondApp PRIVATE
 
 target_link_libraries(FishpondApp PRIVATE
     fishpond_build_config
+    fishpond_embedded_python
     juce::juce_audio_utils
 )
 

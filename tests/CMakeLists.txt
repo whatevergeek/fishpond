@@ -61,6 +61,15 @@ add_executable(fishpond_p1_runtime
 target_link_libraries(fishpond_p1_runtime PRIVATE fishpond_build_config)
 target_include_directories(fishpond_p1_runtime PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
+if(TARGET fishpond_embedded_python)
+    add_executable(fishpond_p1_embedded_python runtime/embedded_python.cpp)
+    target_link_libraries(fishpond_p1_embedded_python PRIVATE fishpond_embedded_python)
+    add_test(NAME IT_EmbeddedPythonPersistentNamespace COMMAND fishpond_p1_embedded_python persistent)
+    add_test(NAME IT_EmbeddedPythonErrorIsolation COMMAND fishpond_p1_embedded_python error-isolation)
+    set_tests_properties(IT_EmbeddedPythonPersistentNamespace IT_EmbeddedPythonErrorIsolation
+        PROPERTIES LABELS "IT;P1;FR-012;FR-013")
+endif()
+
 set(FISHPOND_CTEST_CONFIG_ARGUMENTS)
 set(FISHPOND_TRACEABILITY_CONFIG_ARGUMENTS)
 if(CMAKE_CONFIGURATION_TYPES)
