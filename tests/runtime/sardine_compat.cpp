@@ -12,6 +12,8 @@ int main(int argc, char** argv)
         return runtime.playerReplacementContract() ? 0 : 1;
     if (test == "UT_SardineCompat_PatternNotesAndLiterals")
         return runtime.patternContract() ? 0 : 1;
+    if (test == "UT_SardineCompat_ChordGroups")
+        return runtime.chordPatternContract() ? 0 : 1;
     if (test == "UT_SardineCompat_PeriodPattern")
         return runtime.periodContract() ? 0 : 1;
     if (test == "UT_SardineCompat_QuantizedReplacement")

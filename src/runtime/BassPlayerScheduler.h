@@ -37,7 +37,7 @@ public:
             return false;
         timing = next;
         for (auto& player : players)
-            if (player.noteCount != 0 && ! updatePlayerTiming(player))
+            if (player.stepCount != 0 && ! updatePlayerTiming(player))
                 return false;
         return true;
     }
@@ -53,7 +53,18 @@ public:
                         std::uint8_t nextVelocity, double durationBeats, std::uint64_t startFrame,
                         std::uint64_t channelId = 0) noexcept
     {
-        if (playerIndex >= players.size() || nextNotes.empty() || nextNotes.size() > players[playerIndex].notes.size()
+        std::vector<std::vector<int>> steps;
+        steps.reserve(nextNotes.size());
+        for (const auto note : nextNotes)
+            steps.push_back({ note });
+        return replaceStepsAtFrame(playerIndex, steps, periodBeats, nextVelocity, durationBeats, startFrame, channelId);
+    }
+
+    bool replaceStepsAtFrame(std::size_t playerIndex, const std::vector<std::vector<int>>& nextSteps, double periodBeats,
+                             std::uint8_t nextVelocity, double durationBeats, std::uint64_t startFrame,
+                             std::uint64_t channelId = 0) noexcept
+    {
+        if (playerIndex >= players.size() || nextSteps.empty() || nextSteps.size() > players[playerIndex].steps.size()
             || periodBeats <= 0.0 || durationBeats <= 0.0)
             return false;
 
@@ -62,14 +73,19 @@ public:
         if (frames == 0 || duration == 0)
             return false;
 
-        for (std::size_t index = 0; index < nextNotes.size(); ++index) {
-            if (nextNotes[index] < -1 || nextNotes[index] > 127)
+        for (std::size_t stepIndex = 0; stepIndex < nextSteps.size(); ++stepIndex) {
+            if (nextSteps[stepIndex].empty() || nextSteps[stepIndex].size() > players[playerIndex].steps[stepIndex].size())
                 return false;
-            players[playerIndex].notes[index] = static_cast<std::int16_t>(nextNotes[index]);
+            for (std::size_t noteIndex = 0; noteIndex < nextSteps[stepIndex].size(); ++noteIndex) {
+                if (nextSteps[stepIndex][noteIndex] < -1 || nextSteps[stepIndex][noteIndex] > 127)
+                    return false;
+                players[playerIndex].steps[stepIndex][noteIndex] = static_cast<std::int16_t>(nextSteps[stepIndex][noteIndex]);
+            }
+            players[playerIndex].stepNoteCounts[stepIndex] = nextSteps[stepIndex].size();
         }
         auto& player = players[playerIndex];
-        player.noteCount = nextNotes.size();
-        player.nextNote = 0;
+        player.stepCount = nextSteps.size();
+        player.nextStep = 0;
         player.periodFrames = frames;
         player.durationFrames = duration;
         player.velocity = nextVelocity;
@@ -102,12 +118,16 @@ public:
             auto* next = nextPlayerBefore(horizon);
             if (next == nullptr)
                 return;
-            const auto note = next->notes[next->nextNote];
-            if (note >= 0 && producer.schedule({ next->channelId, next->nextFrame,
-                                                 next->durationFrames, static_cast<std::uint8_t>(note), next->velocity, 1 })
-                != NoteSubmitResult::queued)
+            std::vector<std::uint8_t> notes;
+            const auto noteCount = next->stepNoteCounts[next->nextStep];
+            notes.reserve(noteCount);
+            for (std::size_t index = 0; index < noteCount; ++index)
+                if (next->steps[next->nextStep][index] >= 0)
+                    notes.push_back(static_cast<std::uint8_t>(next->steps[next->nextStep][index]));
+            if (! notes.empty() && producer.scheduleGroup(notes, next->channelId, next->nextFrame,
+                                                           next->durationFrames, next->velocity) != NoteSubmitResult::queued)
                 return;
-            next->nextNote = (next->nextNote + 1) % next->noteCount;
+            next->nextStep = (next->nextStep + 1) % next->stepCount;
             next->nextFrame += next->periodFrames;
         }
     }
@@ -121,9 +141,10 @@ private:
     }
 
     struct Player {
-        std::array<std::int16_t, 128> notes {};
-        std::size_t noteCount {};
-        std::size_t nextNote {};
+        std::array<std::array<std::int16_t, 128>, 128> steps {};
+        std::array<std::size_t, 128> stepNoteCounts {};
+        std::size_t stepCount {};
+        std::size_t nextStep {};
         std::uint32_t periodFrames {};
         std::uint32_t durationFrames {};
         std::uint8_t velocity { 100 };
@@ -148,7 +169,7 @@ private:
     {
         Player* result = nullptr;
         for (auto& player : players)
-            if (player.noteCount != 0 && player.periodFrames != 0 && player.nextFrame < horizon
+            if (player.stepCount != 0 && player.periodFrames != 0 && player.nextFrame < horizon
                 && (result == nullptr || player.nextFrame < result->nextFrame))
                 result = &player;
         return result;

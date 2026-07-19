@@ -40,6 +40,7 @@ endforeach()
 set(FISHPOND_PENDING_SARDINE_COMPAT_TESTS
     UT_SardineCompat_PlayerAssignmentReplaces
     UT_SardineCompat_PatternNotesAndLiterals
+    UT_SardineCompat_ChordGroups
     UT_SardineCompat_PeriodPattern
     UT_SardineCompat_QuantizedReplacement
     UT_SardineCompat_TargetNormalization
@@ -97,6 +98,7 @@ set(FISHPOND_P1_EVENT_BOUNDARY_TESTS
     IT_BassSchedulerMultiplePlayers
     IT_BassSchedulerSinglePlayerStop
     IT_BassSchedulerRests
+    IT_BassSchedulerChordGroups
     IT_BassSchedulerBarQuantization
     IT_P1ValidationProfile
 )
@@ -128,6 +130,9 @@ foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
     elseif(test_id STREQUAL "IT_BassSchedulerRests")
         set(test_argument "scheduler-rests")
         set(test_labels "IT;P1;FR-015;FR-040;FR-045")
+    elseif(test_id STREQUAL "IT_BassSchedulerChordGroups")
+        set(test_argument "scheduler-chords")
+        set(test_labels "IT;P2;FR-012;FR-040;SARDINE-COMPAT")
     elseif(test_id STREQUAL "IT_BassSchedulerBarQuantization")
         set(test_argument "scheduler-bar-quantization")
         set(test_labels "IT;P1;FR-012;FR-016;FR-040;SARDINE-COMPAT")

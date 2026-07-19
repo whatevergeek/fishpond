@@ -3,6 +3,7 @@
 #include "runtime/NoteEventQueue.h"
 
 #include <cstdint>
+#include <vector>
 
 namespace fishpond {
 enum class NoteSubmitResult {
@@ -40,6 +41,22 @@ public:
                                      note.midiNote, 0, note.midiChannel, NoteEventType::noteOff };
         if (! queue.tryPush(on) || ! queue.tryPush(off))
             return NoteSubmitResult::queueFull;
+        return NoteSubmitResult::queued;
+    }
+
+    NoteSubmitResult scheduleGroup(const std::vector<std::uint8_t>& notes, std::uint64_t channelId,
+                                   std::uint64_t targetSampleFrame, std::uint32_t durationFrames,
+                                   std::uint8_t velocity, std::uint8_t midiChannel = 1) noexcept
+    {
+        if (notes.empty() || channelId == 0 || durationFrames == 0 || midiChannel == 0 || midiChannel > 16)
+            return NoteSubmitResult::invalid;
+        if (notes.size() > queue.availableCapacityApproximate() / 2)
+            return NoteSubmitResult::queueFull;
+        for (const auto midiNote : notes) {
+            const auto result = schedule({ channelId, targetSampleFrame, durationFrames, midiNote, velocity, midiChannel });
+            if (result != NoteSubmitResult::queued)
+                return result;
+        }
         return NoteSubmitResult::queued;
     }
 

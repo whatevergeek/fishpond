@@ -212,6 +212,26 @@ int main(int argc, char** argv)
         return playerOneStartsOnBar && playerTwoStartsOnBar ? 0 : 1;
     }
 
+    if (test == "scheduler-chords") {
+        fishpond::NoteEventQueue<16> scheduledQueue;
+        fishpond::BassPlayerScheduler<16> scheduler(scheduledQueue);
+        if (! scheduler.setTiming({ 48'000.0, 256, 120.0 })
+            || ! scheduler.replaceStepsAtFrame(0, { { 36, 40, 43 }, { 38 } }, 1.0, 100, 0.5, 1'000, 7))
+            return 1;
+        scheduler.pump(900);
+        std::uint32_t chordOns {};
+        std::uint32_t chordOffs {};
+        for (int index = 0; index < 6; ++index) {
+            if (! scheduledQueue.tryPop(received) || received.channelId != 7)
+                return 1;
+            if (received.targetSampleFrame == 1'000 && received.type == fishpond::NoteEventType::noteOn)
+                ++chordOns;
+            if (received.targetSampleFrame == 13'000 && received.type == fishpond::NoteEventType::noteOff)
+                ++chordOffs;
+        }
+        return chordOns == 3 && chordOffs == 3 ? 0 : 1;
+    }
+
     if (test == "scheduler-validation-profile") {
         fishpond::NoteEventQueue<8192> scheduledQueue;
         fishpond::BassPlayerScheduler<8192> scheduler(scheduledQueue);

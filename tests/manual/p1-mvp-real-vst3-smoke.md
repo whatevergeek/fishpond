@@ -6,13 +6,13 @@ coverage.
 
 1. Launch Fishpond, open **Instruments**, and click **Load Inst 01 VST3...** while audio is
    stopped. Select the instrument bundle and confirm the status reads
-   `Bass VST3 ready: …`.
+   `Instrument 01 VST3 ready: …`.
 2. Start audio at 48 kHz stereo. In Live Coding, execute each of these lines
    separately:
 
    ```python
-   Pa >> n("C2 C3", target="bass", p=0.5, dur=0.25, velocity=100)
-   Pb >> n("C4", target="bass", p=1, dur=0.5, velocity=80)
+   Pa >> n("{C2 E2 G2}", target="instrument_01", p=0.5, dur=0.25, velocity=100)
+   Pb >> n("C4", target="instrument_01", p=1, dur=0.5, velocity=80)
    ```
 
    Confirm both patterns are audible concurrently for two minutes, with no
@@ -20,7 +20,7 @@ coverage.
 3. Replace only `Pa`:
 
    ```python
-   Pa >> n("E2 G2", target="bass", p=0.5, dur=0.25, velocity=100)
+   Pa >> n("E2 G2", target="instrument_01", p=0.5, dur=0.25, velocity=100)
    ```
 
    Confirm `Pa` changes while `Pb` continues.

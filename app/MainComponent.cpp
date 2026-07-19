@@ -18,7 +18,7 @@ public:
 struct PendingBassPattern {
     std::size_t playerIndex {};
     std::uint64_t channelId {};
-    std::vector<int> notes;
+    std::vector<std::vector<int>> noteSteps;
     double periodBeats {};
     double durationBeats {};
     int velocity {};
@@ -41,7 +41,7 @@ MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
-    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# silence() stops all players; silence(Pa) or Pa.stop() stops one\nPa >> n(\"C2 C3\", target=\"instrument_01\", p=0.5)\n");
+    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# {C3 E3 G3} plays a chord; silence() stops all players\nPa >> n(\"{C2 E2 G2}\", target=\"instrument_01\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
@@ -316,7 +316,7 @@ void MainComponent::timerCallback()
                 const auto targetEnd = patternSource.find('"', targetQuote + 1);
                 const auto channel = channels.resolve(patternSource.substr(targetQuote + 1, targetEnd - targetQuote - 1));
 
-                const auto notes = runtime.notesFromEditorText(patternSource);
+                const auto noteSteps = runtime.noteStepsFromEditorText(patternSource);
                 const auto playerIndex = runtime.playerIndexFromEditorText(patternSource);
                 const auto periodBeats = runtime.periodBeatsFromEditorText(patternSource);
                 const auto durationBeats = runtime.durationBeatsFromEditorText(patternSource);
@@ -331,7 +331,12 @@ void MainComponent::timerCallback()
                     patterns.clear();
                     break;
                 }
-                patterns.push_back({ *playerIndex, channel->id, notes, *periodBeats, *durationBeats, *velocity });
+                if (noteSteps.empty()) {
+                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: notes must use C3 or {C3 E3 G3} chord groups", juce::dontSendNotification);
+                    patterns.clear();
+                    break;
+                }
+                patterns.push_back({ *playerIndex, channel->id, noteSteps, *periodBeats, *durationBeats, *velocity });
             }
 
             if (patterns.empty())
@@ -340,7 +345,7 @@ void MainComponent::timerCallback()
             std::vector<fishpond::AsyncBassScheduler<8192>::Pattern> scheduledPatterns;
             scheduledPatterns.reserve(patterns.size());
             for (auto& pattern : patterns)
-                scheduledPatterns.push_back({ pattern.playerIndex, pattern.channelId, std::move(pattern.notes), pattern.periodBeats,
+                scheduledPatterns.push_back({ pattern.playerIndex, pattern.channelId, std::move(pattern.noteSteps), pattern.periodBeats,
                                               static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats });
             bassScheduler.replaceAll(std::move(scheduledPatterns));
 

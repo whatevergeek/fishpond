@@ -68,21 +68,63 @@ std::optional<int> noteNumber(const std::string& value)
     return midi >= 0 && midi <= 127 ? std::optional<int>(midi) : std::nullopt;
 }
 
-std::vector<int> parseNotes(const std::string& pattern)
+struct ParsedNotePattern {
+    std::vector<std::vector<int>> steps;
+    bool valid { true };
+};
+
+ParsedNotePattern parseNoteSteps(const std::string& pattern)
 {
-    std::string flattened = pattern;
-    std::replace(flattened.begin(), flattened.end(), '[', ' ');
-    std::replace(flattened.begin(), flattened.end(), ']', ' ');
-    std::istringstream stream(flattened);
+    ParsedNotePattern result;
     std::string token;
-    std::vector<int> notes;
-    while (stream >> token) {
-        if (token == ".") {
-            notes.push_back(-1);
-        } else if (const auto value = noteNumber(token)) {
-            notes.push_back(*value);
+    std::vector<int> chord;
+    bool inChord = false;
+    const auto consumeToken = [&] {
+        if (token.empty())
+            return;
+        const auto note = token == "." ? std::optional<int> { -1 } : noteNumber(token);
+        if (! note)
+            result.valid = false;
+        else if (inChord)
+            chord.push_back(*note);
+        else
+            result.steps.push_back({ *note });
+        token.clear();
+    };
+    for (const char character : pattern) {
+        if (std::isspace(static_cast<unsigned char>(character))) {
+            consumeToken();
+        } else if (character == '{') {
+            consumeToken();
+            if (inChord)
+                result.valid = false;
+            inChord = true;
+        } else if (character == '}') {
+            consumeToken();
+            if (! inChord || chord.empty())
+                result.valid = false;
+            else {
+                result.steps.push_back(std::move(chord));
+                chord.clear();
+            }
+            inChord = false;
+        } else {
+            token += character;
         }
     }
+    consumeToken();
+    if (inChord)
+        result.valid = false;
+    if (! result.valid)
+        result.steps.clear();
+    return result;
+}
+
+std::vector<int> parseNotes(const std::string& pattern)
+{
+    std::vector<int> notes;
+    for (const auto& step : parseNoteSteps(pattern).steps)
+        notes.insert(notes.end(), step.begin(), step.end());
     return notes;
 }
 
@@ -209,6 +251,14 @@ std::vector<int> Runtime::notesFromEditorText(const std::string& source) const
         ? std::vector<int> {} : parseNotes(source.substr(firstQuote + 1, secondQuote - firstQuote - 1));
 }
 
+std::vector<std::vector<int>> Runtime::noteStepsFromEditorText(const std::string& source) const
+{
+    const auto firstQuote = source.find('"');
+    const auto secondQuote = firstQuote == std::string::npos ? std::string::npos : source.find('"', firstQuote + 1);
+    return firstQuote == std::string::npos || secondQuote == std::string::npos
+        ? std::vector<std::vector<int>> {} : parseNoteSteps(source.substr(firstQuote + 1, secondQuote - firstQuote - 1)).steps;
+}
+
 std::optional<std::size_t> Runtime::playerIndexFromEditorText(const std::string& source) const
 {
     const auto assignment = source.find(">> n(");
@@ -264,8 +314,14 @@ bool Runtime::playerReplacementContract() const
 
 bool Runtime::patternContract() const
 {
-    const auto notes = parseNotes("C2 D2 [E2 G2]");
+    const auto notes = parseNotes("C2 D2 E2 G2");
     return notes == std::vector<int> { 36, 38, 40, 43 };
+}
+
+bool Runtime::chordPatternContract() const
+{
+    const auto steps = parseNoteSteps("C2 {E2 G2} . {C3 E3 G3}").steps;
+    return steps == std::vector<std::vector<int>> { { 36 }, { 40, 43 }, { -1 }, { 48, 52, 55 } };
 }
 
 bool Runtime::periodContract() const
