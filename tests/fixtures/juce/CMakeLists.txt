@@ -70,6 +70,7 @@ add_custom_target(run-graph-handoff-host-spike
 
 add_executable(fishpond_vst3_fixture_load_spike
     VST3FixtureLoadSpike.cpp
+    "${PROJECT_SOURCE_DIR}/src/host/ControlledVST3Bass.cpp"
     "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"
 )
 target_include_directories(fishpond_vst3_fixture_load_spike PRIVATE "${PROJECT_SOURCE_DIR}/src")
