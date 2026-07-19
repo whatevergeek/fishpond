@@ -88,6 +88,14 @@ foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
     set_tests_properties(${test_id} PROPERTIES LABELS "${test_labels}")
 endforeach()
 
+add_executable(fishpond_p1_graph_handoff runtime/prepared_graph_handoff.cpp)
+target_link_libraries(fishpond_p1_graph_handoff PRIVATE fishpond_build_config)
+target_include_directories(fishpond_p1_graph_handoff PRIVATE "${PROJECT_SOURCE_DIR}/src")
+add_test(NAME IT_PreparedGraphHandoff COMMAND fishpond_p1_graph_handoff command)
+add_test(NAME IT_RetiredGraphReclaimedOffAudio COMMAND fishpond_p1_graph_handoff retire)
+set_tests_properties(IT_PreparedGraphHandoff IT_RetiredGraphReclaimedOffAudio
+    PROPERTIES LABELS "IT;P1;FR-027;FR-051;FR-053")
+
 if(TARGET fishpond_embedded_python)
     add_executable(fishpond_p1_embedded_python runtime/embedded_python.cpp)
     target_link_libraries(fishpond_p1_embedded_python PRIVATE fishpond_embedded_python)
