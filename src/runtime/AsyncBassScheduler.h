@@ -78,8 +78,7 @@ private:
             }
             for (const auto& command : pending) {
                 if (command.type == CommandType::timing) {
-                    queue.requestPanic();
-                    scheduler.setTiming(command.timing, renderFrame.load(std::memory_order_acquire));
+                    scheduler.setTiming(command.timing);
                 }
                 else if (command.type == CommandType::replace) {
                     queue.requestPanic();

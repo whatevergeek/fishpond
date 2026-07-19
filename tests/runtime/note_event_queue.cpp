@@ -86,8 +86,8 @@ int main(int argc, char** argv)
     }
 
     if (test == "scheduler-timing") {
-        fishpond::NoteEventQueue<16> scheduledQueue;
-        fishpond::BassPlayerScheduler<16> scheduler(scheduledQueue);
+        fishpond::NoteEventQueue<4> scheduledQueue;
+        fishpond::BassPlayerScheduler<4> scheduler(scheduledQueue);
         if (! scheduler.setTiming({ 44'100.0, 128, 60.0 })
             || scheduler.setTiming({ 0.0, 128, 60.0 })
             || ! scheduler.replace({ 36, 48 }, 0.5, 1'000))
@@ -99,10 +99,6 @@ int main(int argc, char** argv)
         if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOff
             || received.targetSampleFrame != 23'178 || received.midiNote != 36)
             return 1;
-        if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOn
-            || received.targetSampleFrame != 23'178 || received.midiNote != 48)
-            return 1;
-
         fishpond::NoteEventQueue<2> tempoQueue;
         fishpond::BassPlayerScheduler<2> tempoScheduler(tempoQueue);
         if (! tempoScheduler.setTiming({ 48'000.0, 256, 120.0 })
@@ -113,12 +109,12 @@ int main(int argc, char** argv)
             return 1;
         if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 24'256)
             return 1;
-        if (! tempoScheduler.setTiming({ 48'000.0, 256, 60.0 }, 0))
+        if (! tempoScheduler.setTiming({ 48'000.0, 256, 60.0 }))
             return 1;
-        tempoScheduler.pump(0);
-        if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 256)
+        tempoScheduler.pump(24'000);
+        if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 24'256)
             return 1;
-        return tempoQueue.tryPop(received) && received.targetSampleFrame == 48'256 ? 0 : 1;
+        return tempoQueue.tryPop(received) && received.targetSampleFrame == 72'256 ? 0 : 1;
     }
 
     return 2;

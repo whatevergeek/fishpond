@@ -21,7 +21,7 @@ class BassPlayerScheduler {
 public:
     explicit BassPlayerScheduler(NoteEventQueue<Capacity>& queueToFill) : producer(queueToFill) {}
 
-    bool setTiming(SchedulerTiming next, std::uint64_t renderFrame = 0) noexcept
+    bool setTiming(SchedulerTiming next) noexcept
     {
         if (next.sampleRate <= 0.0 || next.blockSize == 0 || next.bpm <= 0.0)
             return false;
@@ -31,7 +31,6 @@ public:
             if (frames == 0)
                 return false;
             periodFrames = frames;
-            nextFrame = renderFrame + timing.blockSize;
         }
         return true;
     }
@@ -71,7 +70,7 @@ public:
         if (noteCount == 0 || periodFrames == 0)
             return;
 
-        const auto horizon = renderFrame + static_cast<std::uint64_t>(timing.sampleRate);
+        const auto horizon = renderFrame + static_cast<std::uint64_t>(timing.blockSize) * 4;
         while (nextFrame < horizon) {
             if (producer.schedule({ 1, nextFrame, periodFrames, notes[nextNote], 100, 1 })
                 != NoteSubmitResult::queued)
