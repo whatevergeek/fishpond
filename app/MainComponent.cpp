@@ -3,14 +3,14 @@
 MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true);
-    liveCodingEditor.setText("# Select code and press Execute selection\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    liveCodingEditor.setText("# Ctrl+Return: evaluate block\n# Shift+Return: evaluate line\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setText("Ready. Add an instrument channel in P1.4 before notes can be heard.", juce::dontSendNotification);
-    executeButton.setButtonText("Execute (Cmd+Return)");
-    executeButton.setTooltip("Execute selection, or the editor when nothing is selected (Cmd+Return)");
-    executeButton.onClick = [this] { executeEditorText(); };
+    executeButton.setButtonText("Execute block (Ctrl+Return)");
+    executeButton.setTooltip("Evaluate the current code block (Ctrl+Return). Shift+Return evaluates the current line.");
+    executeButton.onClick = [this] { executeEditorText(currentCodeBlock()); };
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(executeButton);
     liveCodingPanel.addAndMakeVisible(diagnostics);
@@ -52,24 +52,41 @@ MainComponent::~MainComponent()
 bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component*)
 {
     const auto& modifiers = key.getModifiers();
-   #if JUCE_MAC
-    const bool executeModifier = modifiers.isCommandDown();
-   #else
-    const bool executeModifier = modifiers.isCtrlDown();
-   #endif
-    if (executeModifier && key.getKeyCode() == juce::KeyPress::returnKey) {
-        executeEditorText();
+    if (modifiers.isCtrlDown() && key.getKeyCode() == juce::KeyPress::returnKey) {
+        executeEditorText(currentCodeBlock());
+        return true;
+    }
+    if (modifiers.isShiftDown() && key.getKeyCode() == juce::KeyPress::returnKey) {
+        executeEditorText(currentLine());
         return true;
     }
     return false;
 }
 
-void MainComponent::executeEditorText()
+void MainComponent::executeEditorText(const juce::String& source)
 {
-    const auto selection = liveCodingEditor.getHighlightedText();
-    const auto source = selection.isNotEmpty() ? selection : liveCodingEditor.getText();
     const auto result = runtime.evaluateEditorText(source.toStdString());
     diagnostics.setText(result.diagnostic, juce::dontSendNotification);
+}
+
+juce::String MainComponent::currentCodeBlock() const
+{
+    const auto source = liveCodingEditor.getText();
+    const auto caret = liveCodingEditor.getCaretPosition();
+    const auto blockStart = source.substring(0, caret).lastIndexOf("\n\n");
+    const auto blockEnd = source.indexOf(caret, "\n\n");
+    return source.substring(blockStart < 0 ? 0 : blockStart + 2,
+                            blockEnd < 0 ? source.length() : blockEnd);
+}
+
+juce::String MainComponent::currentLine() const
+{
+    const auto source = liveCodingEditor.getText();
+    const auto caret = liveCodingEditor.getCaretPosition();
+    const auto lineStart = source.substring(0, caret).lastIndexOfChar('\n');
+    const auto lineEnd = source.indexOfChar(caret, '\n');
+    return source.substring(lineStart < 0 ? 0 : lineStart + 1,
+                            lineEnd < 0 ? source.length() : lineEnd);
 }
 
 void MainComponent::resized()

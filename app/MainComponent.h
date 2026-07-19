@@ -17,7 +17,9 @@ public:
 
 private:
     bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
-    void executeEditorText();
+    void executeEditorText(const juce::String& source);
+    juce::String currentCodeBlock() const;
+    juce::String currentLine() const;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
     void audioDeviceIOCallbackWithContext(const float* const*, int, float* const* output,
@@ -30,7 +32,7 @@ private:
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
     juce::TextEditor liveCodingEditor;
-    juce::TextButton executeButton { "Execute selection" };
+    juce::TextButton executeButton { "Execute block" };
     juce::TextEditor diagnostics;
     juce::Label mixerPlaceholder;
     juce::Label deviceStatus;
