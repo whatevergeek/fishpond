@@ -35,10 +35,8 @@ foreach(test_id IN LISTS FISHPOND_P0_FOUNDATION_TESTS)
     set_tests_properties(${test_id} PROPERTIES LABELS "P0;FOUNDATIONS")
 endforeach()
 
-# These IDs are the approved P0.1 corpus. They are registered now to make the
-# traceability contract executable, but remain disabled until the independently
-# implemented runtime exists. P0.6 will reject disabled required tests at the
-# phase gate; they are not counted as passing evidence.
+# The approved Sardine-compatible P1 corpus is deterministic and requires no
+# audio device, plugin, network, or external Python package.
 set(FISHPOND_PENDING_SARDINE_COMPAT_TESTS
     UT_SardineCompat_PlayerAssignmentReplaces
     UT_SardineCompat_PatternNotesAndLiterals
@@ -52,14 +50,16 @@ set(FISHPOND_PENDING_SARDINE_COMPAT_TESTS
 )
 
 foreach(test_id IN LISTS FISHPOND_PENDING_SARDINE_COMPAT_TESTS)
-    add_test(NAME ${test_id}
-        COMMAND "${CMAKE_COMMAND}" -E false
-    )
-    set_tests_properties(${test_id} PROPERTIES
-        DISABLED TRUE
-        LABELS "P0;SARDINE-COMPAT;PENDING-RUNTIME"
-    )
+    add_test(NAME ${test_id} COMMAND fishpond_p1_runtime ${test_id})
+    set_tests_properties(${test_id} PROPERTIES LABELS "P1;SARDINE-COMPAT")
 endforeach()
+
+add_executable(fishpond_p1_runtime
+    runtime/sardine_compat.cpp
+    "${PROJECT_SOURCE_DIR}/src/runtime/Runtime.cpp"
+)
+target_link_libraries(fishpond_p1_runtime PRIVATE fishpond_build_config)
+target_include_directories(fishpond_p1_runtime PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
 set(FISHPOND_CTEST_CONFIG_ARGUMENTS)
 set(FISHPOND_TRACEABILITY_CONFIG_ARGUMENTS)
