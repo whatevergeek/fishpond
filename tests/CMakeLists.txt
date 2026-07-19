@@ -74,6 +74,7 @@ set(FISHPOND_P1_EVENT_BOUNDARY_TESTS
     IT_BassSchedulerDeviceTiming
     IT_BassSchedulerMultiplePlayers
     IT_BassSchedulerSinglePlayerStop
+    IT_BassSchedulerRests
     IT_P1ValidationProfile
 )
 foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
@@ -101,6 +102,9 @@ foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
     elseif(test_id STREQUAL "IT_BassSchedulerSinglePlayerStop")
         set(test_argument "scheduler-remove")
         set(test_labels "IT;P1;FR-012;FR-018;FR-040;FR-052")
+    elseif(test_id STREQUAL "IT_BassSchedulerRests")
+        set(test_argument "scheduler-rests")
+        set(test_labels "IT;P1;FR-015;FR-040;FR-045")
     elseif(test_id STREQUAL "IT_P1ValidationProfile")
         set(test_argument "scheduler-validation-profile")
         set(test_labels "IT;P1;FR-012;FR-040;FR-052;MVP-PROFILE")

@@ -47,9 +47,9 @@ public:
             return false;
 
         for (std::size_t index = 0; index < nextNotes.size(); ++index) {
-            if (nextNotes[index] < 0 || nextNotes[index] > 127)
+            if (nextNotes[index] < -1 || nextNotes[index] > 127)
                 return false;
-            players[playerIndex].notes[index] = static_cast<std::uint8_t>(nextNotes[index]);
+            players[playerIndex].notes[index] = static_cast<std::int16_t>(nextNotes[index]);
         }
         auto& player = players[playerIndex];
         player.noteCount = nextNotes.size();
@@ -85,8 +85,9 @@ public:
             auto* next = nextPlayerBefore(horizon);
             if (next == nullptr)
                 return;
-            if (producer.schedule({ static_cast<std::uint64_t>(next - players.data() + 1), next->nextFrame,
-                                    next->durationFrames, next->notes[next->nextNote], next->velocity, 1 })
+            const auto note = next->notes[next->nextNote];
+            if (note >= 0 && producer.schedule({ static_cast<std::uint64_t>(next - players.data() + 1), next->nextFrame,
+                                                 next->durationFrames, static_cast<std::uint8_t>(note), next->velocity, 1 })
                 != NoteSubmitResult::queued)
                 return;
             next->nextNote = (next->nextNote + 1) % next->noteCount;
@@ -103,7 +104,7 @@ private:
     }
 
     struct Player {
-        std::array<std::uint8_t, 128> notes {};
+        std::array<std::int16_t, 128> notes {};
         std::size_t noteCount {};
         std::size_t nextNote {};
         std::uint32_t periodFrames {};

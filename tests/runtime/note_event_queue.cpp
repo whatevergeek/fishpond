@@ -170,6 +170,22 @@ int main(int argc, char** argv)
             && ! scheduledQueue.tryPop(received) ? 0 : 1;
     }
 
+    if (test == "scheduler-rests") {
+        fishpond::NoteEventQueue<4> scheduledQueue;
+        fishpond::BassPlayerScheduler<4> scheduler(scheduledQueue);
+        if (! scheduler.setTiming({ 48'000.0, 256, 120.0 })
+            || ! scheduler.replace(0, { -1, 36 }, 1.0, 100, 0.5, 0))
+            return 1;
+        scheduler.pump(0);
+        if (scheduledQueue.tryPop(received))
+            return 1;
+        scheduler.pump(24'000);
+        return scheduledQueue.tryPop(received) && received.type == fishpond::NoteEventType::noteOn
+            && received.targetSampleFrame == 24'256 && received.midiNote == 36
+            && scheduledQueue.tryPop(received) && received.type == fishpond::NoteEventType::noteOff
+            && received.targetSampleFrame == 36'256 ? 0 : 1;
+    }
+
     if (test == "scheduler-validation-profile") {
         fishpond::NoteEventQueue<8192> scheduledQueue;
         fishpond::BassPlayerScheduler<8192> scheduler(scheduledQueue);

@@ -76,7 +76,9 @@ std::vector<int> parseNotes(const std::string& pattern)
     std::string token;
     std::vector<int> notes;
     while (stream >> token) {
-        if (const auto value = noteNumber(token)) {
+        if (token == ".") {
+            notes.push_back(-1);
+        } else if (const auto value = noteNumber(token)) {
             notes.push_back(*value);
         }
     }
@@ -117,7 +119,8 @@ public:
         std::vector<Event> events;
         for (const auto& [name, player] : players)
             for (const auto note : player.notes)
-                events.push_back({ name, player.channel, note, false });
+                if (note >= 0)
+                    events.push_back({ name, player.channel, note, false });
         return events;
     }
 
@@ -172,7 +175,8 @@ std::optional<int> Runtime::firstNoteFromEditorText(const std::string& source) c
     if (firstQuote == std::string::npos || secondQuote == std::string::npos)
         return std::nullopt;
     const auto notes = parseNotes(source.substr(firstQuote + 1, secondQuote - firstQuote - 1));
-    return notes.empty() ? std::nullopt : std::optional<int>(notes.front());
+    const auto firstNote = std::find_if(notes.begin(), notes.end(), [] (int note) { return note >= 0; });
+    return firstNote == notes.end() ? std::nullopt : std::optional<int>(*firstNote);
 }
 
 std::vector<int> Runtime::notesFromEditorText(const std::string& source) const
