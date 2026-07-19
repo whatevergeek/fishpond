@@ -21,7 +21,18 @@ MainComponent::MainComponent()
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
     liveCodingEditor.setText("# Ctrl/Cmd+Return: evaluate block\n# Shift+Return: evaluate line\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
-    liveCodingEditor.addKeyListener(this);
+    liveCodingEditor.onShortcut = [this] (const juce::KeyPress& key) {
+        const auto& modifiers = key.getModifiers();
+        if ((modifiers.isCtrlDown() || modifiers.isCommandDown()) && key.getKeyCode() == juce::KeyPress::returnKey) {
+            executeEditorText(currentCodeBlock());
+            return true;
+        }
+        if (modifiers.isShiftDown() && key.getKeyCode() == juce::KeyPress::returnKey) {
+            executeEditorText(currentLine());
+            return true;
+        }
+        return false;
+    };
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setText("Ready. Load the controlled Bass fixture in Mixer, then evaluate a pattern.", juce::dontSendNotification);
@@ -142,23 +153,8 @@ void MainComponent::openBassEditor()
 MainComponent::~MainComponent()
 {
     stopTimer();
-    liveCodingEditor.removeKeyListener(this);
     deviceManager.removeAudioCallback(this);
     deviceManager.closeAudioDevice();
-}
-
-bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component*)
-{
-    const auto& modifiers = key.getModifiers();
-    if ((modifiers.isCtrlDown() || modifiers.isCommandDown()) && key.getKeyCode() == juce::KeyPress::returnKey) {
-        executeEditorText(currentCodeBlock());
-        return true;
-    }
-    if (modifiers.isShiftDown() && key.getKeyCode() == juce::KeyPress::returnKey) {
-        executeEditorText(currentLine());
-        return true;
-    }
-    return false;
 }
 
 void MainComponent::executeEditorText(const juce::String& source)

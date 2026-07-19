@@ -12,11 +12,21 @@
 
 #include <memory>
 #include <atomic>
+#include <functional>
 #include <vector>
+
+class LiveCodingEditor final : public juce::TextEditor {
+public:
+    std::function<bool(const juce::KeyPress&)> onShortcut;
+
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        return onShortcut != nullptr && onShortcut(key) ? true : juce::TextEditor::keyPressed(key);
+    }
+};
 
 class MainComponent final : public juce::Component,
                             private juce::AudioIODeviceCallback,
-                            private juce::KeyListener,
                             private juce::Timer {
 public:
     MainComponent();
@@ -25,7 +35,6 @@ public:
     void resized() override;
 
 private:
-    bool keyPressed(const juce::KeyPress& key, juce::Component*) override;
     void executeEditorText(const juce::String& source);
     void loadBassBundle(const juce::File& bundle);
     void openBassEditor();
@@ -54,7 +63,7 @@ private:
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
-    juce::TextEditor liveCodingEditor;
+    LiveCodingEditor liveCodingEditor;
     juce::TextButton executeButton { "Execute block" };
     juce::TextEditor diagnostics;
     juce::Label mixerPlaceholder;
