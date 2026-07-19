@@ -61,6 +61,33 @@ add_executable(fishpond_p1_runtime
 target_link_libraries(fishpond_p1_runtime PRIVATE fishpond_build_config)
 target_include_directories(fishpond_p1_runtime PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
+add_executable(fishpond_p1_event_boundary runtime/note_event_queue.cpp)
+target_link_libraries(fishpond_p1_event_boundary PRIVATE fishpond_build_config)
+target_include_directories(fishpond_p1_event_boundary PRIVATE "${PROJECT_SOURCE_DIR}/src")
+set(FISHPOND_P1_EVENT_BOUNDARY_TESTS
+    UT_NoteEventQueueCapacity
+    IT_NoteEventQueueOrdering
+    IT_NoteEventQueuePanic
+    IT_NoteEventDispatchOrdering
+)
+foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
+    if(test_id STREQUAL "UT_NoteEventQueueCapacity")
+        set(test_argument "capacity")
+        set(test_labels "UT;P1;FR-052")
+    elseif(test_id STREQUAL "IT_NoteEventQueueOrdering")
+        set(test_argument "ordering")
+        set(test_labels "IT;P1;FR-040;FR-052")
+    elseif(test_id STREQUAL "IT_NoteEventDispatchOrdering")
+        set(test_argument "dispatch")
+        set(test_labels "IT;P1;FR-040;FR-052")
+    else()
+        set(test_argument "panic")
+        set(test_labels "IT;P1;FR-018;FR-052")
+    endif()
+    add_test(NAME ${test_id} COMMAND fishpond_p1_event_boundary ${test_argument})
+    set_tests_properties(${test_id} PROPERTIES LABELS "${test_labels}")
+endforeach()
+
 if(TARGET fishpond_embedded_python)
     add_executable(fishpond_p1_embedded_python runtime/embedded_python.cpp)
     target_link_libraries(fishpond_p1_embedded_python PRIVATE fishpond_embedded_python)
