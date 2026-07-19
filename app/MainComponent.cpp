@@ -29,15 +29,7 @@ MainComponent::MainComponent()
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
     liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
-    liveCodingEditor.onShortcut = [this] (const juce::KeyPress& key) {
-        const auto& modifiers = key.getModifiers();
-        if (modifiers.isShiftDown() && key.getKeyCode() == juce::KeyPress::returnKey) {
-            const auto selectedText = liveCodingEditor.getHighlightedText();
-            executeEditorText(selectedText.isNotEmpty() ? selectedText : currentLine());
-            return true;
-        }
-        return false;
-    };
+    liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setText("Ready. Load the controlled Bass fixture in Mixer, then evaluate a pattern.", juce::dontSendNotification);
@@ -154,6 +146,7 @@ void MainComponent::openBassEditor()
 MainComponent::~MainComponent()
 {
     stopTimer();
+    liveCodingEditor.removeKeyListener(this);
     deviceManager.removeAudioCallback(this);
     deviceManager.closeAudioDevice();
 }
@@ -247,6 +240,21 @@ juce::String MainComponent::currentLine() const
     const auto lineEnd = source.indexOfChar(caret, '\n');
     return source.substring(lineStart < 0 ? 0 : lineStart + 1,
                             lineEnd < 0 ? source.length() : lineEnd);
+}
+
+bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origin)
+{
+    if (origin != &liveCodingEditor || ! key.isKeyCode(juce::KeyPress::returnKey))
+        return false;
+
+    const auto shiftDown = key.getModifiers().isShiftDown()
+                        || juce::ModifierKeys::getCurrentModifiers().isShiftDown();
+    if (! shiftDown)
+        return false;
+
+    const auto selectedText = liveCodingEditor.getHighlightedText();
+    executeEditorText(selectedText.isNotEmpty() ? selectedText : currentLine());
+    return true;
 }
 
 void MainComponent::resized()
