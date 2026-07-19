@@ -120,6 +120,11 @@ void MainComponent::loadBassBundle(const juce::File& bundle)
 
 void MainComponent::openBassEditor()
 {
+    if (bassEditorWindow != nullptr) {
+        bassEditorWindow->setVisible(true);
+        bassEditorWindow->toFront(true);
+        return;
+    }
     auto* processor = bass != nullptr ? bass->activeProcessorForEditor() : nullptr;
     if (processor == nullptr || bass->state() != fishpond::SingleChannelState::ready) {
         mixerPlaceholder.setText("Load a Bass VST3 before opening its UI", juce::dontSendNotification);
