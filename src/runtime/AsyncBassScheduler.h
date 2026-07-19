@@ -35,11 +35,13 @@ public:
     AsyncBassScheduler& operator=(const AsyncBassScheduler&) = delete;
 
     void setTiming(SchedulerTiming timing) { submit({ CommandType::timing, std::move(timing) }); }
-    void replace(std::vector<int> notes, double periodBeats)
+    void replace(std::vector<int> notes, double periodBeats, std::uint8_t velocity, double durationBeats)
     {
         Command command { CommandType::replace };
         command.notes = std::move(notes);
         command.periodBeats = periodBeats;
+        command.velocity = velocity;
+        command.durationBeats = durationBeats;
         submit(std::move(command));
     }
     void clear() { submit({ CommandType::clear }); }
@@ -51,6 +53,8 @@ private:
         SchedulerTiming timing {};
         std::vector<int> notes;
         double periodBeats {};
+        std::uint8_t velocity { 100 };
+        double durationBeats { 1.0 };
     };
 
     void submit(Command command)
@@ -82,7 +86,7 @@ private:
                 }
                 else if (command.type == CommandType::replace) {
                     queue.requestPanic();
-                    scheduler.replace(command.notes, command.periodBeats,
+                    scheduler.replace(command.notes, command.periodBeats, command.velocity, command.durationBeats,
                                       renderFrame.load(std::memory_order_acquire));
                 } else {
                     scheduler.clear();

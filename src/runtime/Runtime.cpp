@@ -197,6 +197,24 @@ std::optional<double> Runtime::periodBeatsFromEditorText(const std::string& sour
     }
 }
 
+std::optional<double> Runtime::durationBeatsFromEditorText(const std::string& source) const
+{
+    const auto marker = source.find("dur=");
+    if (marker == std::string::npos) return periodBeatsFromEditorText(source);
+    const auto end = source.find_first_of(",)", marker + 4);
+    try { const auto value = std::stod(source.substr(marker + 4, end - marker - 4)); return value > 0.0 ? std::optional<double>(value) : std::nullopt; }
+    catch (...) { return std::nullopt; }
+}
+
+std::optional<int> Runtime::velocityFromEditorText(const std::string& source) const
+{
+    const auto marker = source.find("velocity=");
+    if (marker == std::string::npos) return 100;
+    const auto end = source.find_first_of(",)", marker + 9);
+    try { const auto value = std::stoi(source.substr(marker + 9, end - marker - 9)); return value >= 1 && value <= 127 ? std::optional<int>(value) : std::nullopt; }
+    catch (...) { return std::nullopt; }
+}
+
 bool Runtime::playerReplacementContract() const
 {
     Engine engine; engine.createChannel("Bass");

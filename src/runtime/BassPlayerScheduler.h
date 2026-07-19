@@ -28,20 +28,24 @@ public:
         timing = next;
         if (noteCount != 0 && periodBeats > 0.0) {
             const auto frames = framesForPeriod(periodBeats);
-            if (frames == 0)
+            const auto duration = framesForPeriod(durationBeats);
+            if (frames == 0 || duration == 0)
                 return false;
             periodFrames = frames;
+            durationFrames = duration;
         }
         return true;
     }
 
-    bool replace(const std::vector<int>& nextNotes, double periodBeats, std::uint64_t renderFrame) noexcept
+    bool replace(const std::vector<int>& nextNotes, double periodBeats, std::uint8_t nextVelocity,
+                 double durationBeats, std::uint64_t renderFrame) noexcept
     {
-        if (nextNotes.empty() || nextNotes.size() > notes.size() || periodBeats <= 0.0)
+        if (nextNotes.empty() || nextNotes.size() > notes.size() || periodBeats <= 0.0 || durationBeats <= 0.0)
             return false;
 
         const auto frames = framesForPeriod(periodBeats);
-        if (frames == 0)
+        const auto duration = framesForPeriod(durationBeats);
+        if (frames == 0 || duration == 0)
             return false;
 
         for (std::size_t index = 0; index < nextNotes.size(); ++index) {
@@ -52,7 +56,10 @@ public:
         noteCount = nextNotes.size();
         nextNote = 0;
         periodFrames = frames;
+        durationFrames = duration;
+        velocity = nextVelocity;
         this->periodBeats = periodBeats;
+        this->durationBeats = durationBeats;
         nextFrame = renderFrame + timing.blockSize;
         return true;
     }
@@ -63,6 +70,7 @@ public:
         nextNote = 0;
         periodFrames = 0;
         periodBeats = 0.0;
+        durationBeats = 0.0;
     }
 
     void pump(std::uint64_t renderFrame) noexcept
@@ -72,7 +80,7 @@ public:
 
         const auto horizon = renderFrame + static_cast<std::uint64_t>(timing.blockSize) * 4;
         while (nextFrame < horizon) {
-            if (producer.schedule({ 1, nextFrame, periodFrames, notes[nextNote], 100, 1 })
+            if (producer.schedule({ 1, nextFrame, durationFrames, notes[nextNote], velocity, 1 })
                 != NoteSubmitResult::queued)
                 return;
             nextNote = (nextNote + 1) % noteCount;
@@ -94,7 +102,10 @@ private:
     std::size_t noteCount {};
     std::size_t nextNote {};
     std::uint32_t periodFrames {};
+    std::uint32_t durationFrames {};
+    std::uint8_t velocity { 100 };
     double periodBeats {};
+    double durationBeats {};
     std::uint64_t nextFrame {};
 };
 }

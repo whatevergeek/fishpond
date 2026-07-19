@@ -90,7 +90,7 @@ int main(int argc, char** argv)
         fishpond::BassPlayerScheduler<4> scheduler(scheduledQueue);
         if (! scheduler.setTiming({ 44'100.0, 128, 60.0 })
             || scheduler.setTiming({ 0.0, 128, 60.0 })
-            || ! scheduler.replace({ 36, 48 }, 0.5, 1'000))
+            || ! scheduler.replace({ 36, 48 }, 0.5, 100, 0.5, 1'000))
             return 1;
         scheduler.pump(1'000);
         if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOn
@@ -102,7 +102,7 @@ int main(int argc, char** argv)
         fishpond::NoteEventQueue<2> tempoQueue;
         fishpond::BassPlayerScheduler<2> tempoScheduler(tempoQueue);
         if (! tempoScheduler.setTiming({ 48'000.0, 256, 120.0 })
-            || ! tempoScheduler.replace({ 60 }, 1.0, 0))
+            || ! tempoScheduler.replace({ 60 }, 1.0, 100, 1.0, 0))
             return 1;
         tempoScheduler.pump(0);
         if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 256)

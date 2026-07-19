@@ -131,11 +131,13 @@ void MainComponent::timerCallback()
             if (validation.accepted) {
                 const auto notes = runtime.notesFromEditorText(completion.source);
                 const auto periodBeats = runtime.periodBeatsFromEditorText(completion.source);
-                if (! periodBeats) {
-                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: p must be a positive number", juce::dontSendNotification);
+                const auto durationBeats = runtime.durationBeatsFromEditorText(completion.source);
+                const auto velocity = runtime.velocityFromEditorText(completion.source);
+                if (! periodBeats || ! durationBeats || ! velocity) {
+                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: p, dur, and velocity must be valid", juce::dontSendNotification);
                     continue;
                 }
-                bassScheduler.replace(notes, *periodBeats);
+                bassScheduler.replace(notes, *periodBeats, static_cast<std::uint8_t>(*velocity), *durationBeats);
                 diagnostics.setText("Playing " + juce::String(notes.size()) + " Bass-note pattern",
                                     juce::dontSendNotification);
             } else
