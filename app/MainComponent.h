@@ -40,7 +40,6 @@ private:
     void openBassEditor();
     void timerCallback() override;
     void updateSchedulerTiming();
-    juce::String currentCodeBlock() const;
     juce::String currentLine() const;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
@@ -64,7 +63,6 @@ private:
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
     LiveCodingEditor liveCodingEditor;
-    juce::TextButton executeButton { "Execute block" };
     juce::TextEditor diagnostics;
     juce::Label mixerPlaceholder;
     juce::TextButton loadBassButton { "Load Bass fixture" };

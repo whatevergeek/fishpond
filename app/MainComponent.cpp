@@ -14,21 +14,26 @@ public:
 
     void closeButtonPressed() override { setVisible(false); }
 };
+
+struct PendingBassPattern {
+    std::size_t playerIndex {};
+    std::vector<int> notes;
+    double periodBeats {};
+    double durationBeats {};
+    int velocity {};
+};
 }
 
 MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
-    liveCodingEditor.setText("# Ctrl/Cmd+Return: evaluate block\n# Shift+Return: evaluate line\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# silence() stops active players\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
     liveCodingEditor.onShortcut = [this] (const juce::KeyPress& key) {
         const auto& modifiers = key.getModifiers();
-        if ((modifiers.isCtrlDown() || modifiers.isCommandDown()) && key.getKeyCode() == juce::KeyPress::returnKey) {
-            executeEditorText(currentCodeBlock());
-            return true;
-        }
         if (modifiers.isShiftDown() && key.getKeyCode() == juce::KeyPress::returnKey) {
-            executeEditorText(currentLine());
+            const auto selectedText = liveCodingEditor.getHighlightedText();
+            executeEditorText(selectedText.isNotEmpty() ? selectedText : currentLine());
             return true;
         }
         return false;
@@ -36,11 +41,7 @@ MainComponent::MainComponent()
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setText("Ready. Load the controlled Bass fixture in Mixer, then evaluate a pattern.", juce::dontSendNotification);
-    executeButton.setButtonText("Execute block (Ctrl/Cmd+Return)");
-    executeButton.setTooltip("Evaluate the current code block (Ctrl/Cmd+Return). Shift+Return evaluates the current line.");
-    executeButton.onClick = [this] { executeEditorText(currentCodeBlock()); };
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
-    liveCodingPanel.addAndMakeVisible(executeButton);
     liveCodingPanel.addAndMakeVisible(diagnostics);
     mixerPlaceholder.setText("Mixer - one controlled Bass VST3 channel", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
@@ -193,37 +194,49 @@ void MainComponent::timerCallback()
         }
         if (completion.source.find(">> n(") != std::string::npos) {
             const auto bassReady = bass != nullptr && bass->state() == fishpond::SingleChannelState::ready;
-            const auto validation = runtime.evaluateEditorText(completion.source, bassReady);
-            if (validation.accepted) {
-                const auto notes = runtime.notesFromEditorText(completion.source);
-                const auto playerIndex = runtime.playerIndexFromEditorText(completion.source);
-                const auto periodBeats = runtime.periodBeatsFromEditorText(completion.source);
-                const auto durationBeats = runtime.durationBeatsFromEditorText(completion.source);
-                const auto velocity = runtime.velocityFromEditorText(completion.source);
+            std::vector<PendingBassPattern> patterns;
+            juce::StringArray lines;
+            lines.addLines(juce::String(completion.source));
+
+            for (const auto& line : lines) {
+                const auto patternSource = line.toStdString();
+                if (patternSource.find(">> n(") == std::string::npos)
+                    continue;
+
+                const auto validation = runtime.evaluateEditorText(patternSource, bassReady);
+                if (! validation.accepted) {
+                    diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
+                    patterns.clear();
+                    break;
+                }
+
+                const auto notes = runtime.notesFromEditorText(patternSource);
+                const auto playerIndex = runtime.playerIndexFromEditorText(patternSource);
+                const auto periodBeats = runtime.periodBeatsFromEditorText(patternSource);
+                const auto durationBeats = runtime.durationBeatsFromEditorText(patternSource);
+                const auto velocity = runtime.velocityFromEditorText(patternSource);
                 if (! playerIndex || ! periodBeats || ! durationBeats || ! velocity) {
                     diagnostics.setText("FP_PATTERN_VALUE_INVALID: player, p, dur, and velocity must be valid", juce::dontSendNotification);
-                    continue;
+                    patterns.clear();
+                    break;
                 }
-                bassScheduler.replace(*playerIndex, notes, *periodBeats, static_cast<std::uint8_t>(*velocity), *durationBeats);
-                diagnostics.setText("Playing " + juce::String(notes.size()) + " Bass-note pattern on P"
-                                        + juce::String::charToString(static_cast<juce::juce_wchar>('a' + *playerIndex)),
-                                    juce::dontSendNotification);
-            } else
-                diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
+                patterns.push_back({ *playerIndex, notes, *periodBeats, *durationBeats, *velocity });
+            }
+
+            if (patterns.empty())
+                continue;
+
+            for (const auto& pattern : patterns)
+                bassScheduler.replace(pattern.playerIndex, pattern.notes, pattern.periodBeats,
+                                      static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats);
+
+            diagnostics.setText("Playing " + juce::String(static_cast<int>(patterns.size()))
+                                    + (patterns.size() == 1 ? " Bass-note pattern" : " Bass-note patterns"),
+                                juce::dontSendNotification);
         } else {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
         }
     }
-}
-
-juce::String MainComponent::currentCodeBlock() const
-{
-    const auto source = liveCodingEditor.getText();
-    const auto caret = liveCodingEditor.getCaretPosition();
-    const auto blockStart = source.substring(0, caret).lastIndexOf("\n\n");
-    const auto blockEnd = source.indexOf(caret, "\n\n");
-    return source.substring(blockStart < 0 ? 0 : blockStart + 2,
-                            blockEnd < 0 ? source.length() : blockEnd);
 }
 
 juce::String MainComponent::currentLine() const
@@ -246,8 +259,6 @@ void MainComponent::resized()
     startStopButton.setBounds(transport.removeFromRight(120));
     tabs.setBounds(area);
     auto liveArea = liveCodingPanel.getLocalBounds().reduced(8);
-    auto actions = liveArea.removeFromTop(32);
-    executeButton.setBounds(actions.removeFromLeft(160));
     diagnostics.setBounds(liveArea.removeFromBottom(84));
     liveCodingEditor.setBounds(liveArea);
     auto mixerArea = mixerPlaceholder.getLocalBounds().reduced(8);
