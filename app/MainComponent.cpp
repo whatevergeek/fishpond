@@ -56,8 +56,10 @@ MainComponent::MainComponent()
     tempoSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 56, 22);
     tempoSlider.onValueChange = [this] {
         tempoLabel.setText(juce::String(tempoSlider.getValue(), 0) + " BPM", juce::dontSendNotification);
-        updateSchedulerTiming();
+        if (! tempoSlider.isMouseButtonDown())
+            updateSchedulerTiming();
     };
+    tempoSlider.onDragEnd = [this] { updateSchedulerTiming(); };
     startTimerHz(30);
     addAndMakeVisible(tabs);
     addAndMakeVisible(deviceStatus);
