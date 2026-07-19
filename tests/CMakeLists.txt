@@ -61,6 +61,24 @@ add_executable(fishpond_p1_runtime
 target_link_libraries(fishpond_p1_runtime PRIVATE fishpond_build_config)
 target_include_directories(fishpond_p1_runtime PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
+add_executable(fishpond_p2_channels
+    runtime/channel_registry.cpp
+    "${PROJECT_SOURCE_DIR}/src/mixer/ChannelRegistry.cpp"
+)
+target_link_libraries(fishpond_p2_channels PRIVATE fishpond_build_config)
+target_include_directories(fishpond_p2_channels PRIVATE "${PROJECT_SOURCE_DIR}/src")
+foreach(test_id IN ITEMS UT_ChannelAliasDerivation UT_ChannelAliasCollision IT_ChannelRenamePreservesIdentity)
+    if(test_id STREQUAL "UT_ChannelAliasDerivation")
+        set(test_argument "aliases")
+    elseif(test_id STREQUAL "UT_ChannelAliasCollision")
+        set(test_argument "collisions")
+    else()
+        set(test_argument "rename")
+    endif()
+    add_test(NAME ${test_id} COMMAND fishpond_p2_channels ${test_argument})
+    set_tests_properties(${test_id} PROPERTIES LABELS "P2;FR-034;FR-034a")
+endforeach()
+
 add_executable(fishpond_p1_event_boundary runtime/note_event_queue.cpp)
 target_link_libraries(fishpond_p1_event_boundary PRIVATE fishpond_build_config)
 target_include_directories(fishpond_p1_event_boundary PRIVATE "${PROJECT_SOURCE_DIR}/src")
