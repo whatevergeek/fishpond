@@ -72,6 +72,8 @@ set(FISHPOND_P1_EVENT_BOUNDARY_TESTS
     IT_NoteEventNoteOffReservation
     UT_NoteEventValidation
     IT_BassSchedulerDeviceTiming
+    IT_BassSchedulerMultiplePlayers
+    IT_P1ValidationProfile
 )
 foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
     if(test_id STREQUAL "UT_NoteEventQueueCapacity")
@@ -92,6 +94,12 @@ foreach(test_id IN LISTS FISHPOND_P1_EVENT_BOUNDARY_TESTS)
     elseif(test_id STREQUAL "IT_BassSchedulerDeviceTiming")
         set(test_argument "scheduler-timing")
         set(test_labels "IT;P1;FR-016;FR-040;FR-052")
+    elseif(test_id STREQUAL "IT_BassSchedulerMultiplePlayers")
+        set(test_argument "scheduler-multiple")
+        set(test_labels "IT;P1;FR-012;FR-040;FR-052")
+    elseif(test_id STREQUAL "IT_P1ValidationProfile")
+        set(test_argument "scheduler-validation-profile")
+        set(test_labels "IT;P1;FR-012;FR-040;FR-052;MVP-PROFILE")
     else()
         set(test_argument "panic")
         set(test_labels "IT;P1;FR-018;FR-052")

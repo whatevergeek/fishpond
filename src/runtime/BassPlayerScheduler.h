@@ -19,6 +19,8 @@ struct SchedulerTiming {
 template <std::size_t Capacity>
 class BassPlayerScheduler {
 public:
+    static constexpr std::size_t maxPlayers = 26;
+
     explicit BassPlayerScheduler(NoteEventQueue<Capacity>& queueToFill) : producer(queueToFill) {}
 
     bool setTiming(SchedulerTiming next) noexcept
@@ -26,21 +28,17 @@ public:
         if (next.sampleRate <= 0.0 || next.blockSize == 0 || next.bpm <= 0.0)
             return false;
         timing = next;
-        if (noteCount != 0 && periodBeats > 0.0) {
-            const auto frames = framesForPeriod(periodBeats);
-            const auto duration = framesForPeriod(durationBeats);
-            if (frames == 0 || duration == 0)
+        for (auto& player : players)
+            if (player.noteCount != 0 && ! updatePlayerTiming(player))
                 return false;
-            periodFrames = frames;
-            durationFrames = duration;
-        }
         return true;
     }
 
-    bool replace(const std::vector<int>& nextNotes, double periodBeats, std::uint8_t nextVelocity,
+    bool replace(std::size_t playerIndex, const std::vector<int>& nextNotes, double periodBeats, std::uint8_t nextVelocity,
                  double durationBeats, std::uint64_t renderFrame) noexcept
     {
-        if (nextNotes.empty() || nextNotes.size() > notes.size() || periodBeats <= 0.0 || durationBeats <= 0.0)
+        if (playerIndex >= players.size() || nextNotes.empty() || nextNotes.size() > players[playerIndex].notes.size()
+            || periodBeats <= 0.0 || durationBeats <= 0.0)
             return false;
 
         const auto frames = framesForPeriod(periodBeats);
@@ -51,40 +49,38 @@ public:
         for (std::size_t index = 0; index < nextNotes.size(); ++index) {
             if (nextNotes[index] < 0 || nextNotes[index] > 127)
                 return false;
-            notes[index] = static_cast<std::uint8_t>(nextNotes[index]);
+            players[playerIndex].notes[index] = static_cast<std::uint8_t>(nextNotes[index]);
         }
-        noteCount = nextNotes.size();
-        nextNote = 0;
-        periodFrames = frames;
-        durationFrames = duration;
-        velocity = nextVelocity;
-        this->periodBeats = periodBeats;
-        this->durationBeats = durationBeats;
-        nextFrame = renderFrame + timing.blockSize;
+        auto& player = players[playerIndex];
+        player.noteCount = nextNotes.size();
+        player.nextNote = 0;
+        player.periodFrames = frames;
+        player.durationFrames = duration;
+        player.velocity = nextVelocity;
+        player.periodBeats = periodBeats;
+        player.durationBeats = durationBeats;
+        player.nextFrame = renderFrame + timing.blockSize;
         return true;
     }
 
     void clear() noexcept
     {
-        noteCount = 0;
-        nextNote = 0;
-        periodFrames = 0;
-        periodBeats = 0.0;
-        durationBeats = 0.0;
+        players = {};
     }
 
     void pump(std::uint64_t renderFrame) noexcept
     {
-        if (noteCount == 0 || periodFrames == 0)
-            return;
-
         const auto horizon = renderFrame + static_cast<std::uint64_t>(timing.blockSize) * 4;
-        while (nextFrame < horizon) {
-            if (producer.schedule({ 1, nextFrame, durationFrames, notes[nextNote], velocity, 1 })
+        for (;;) {
+            auto* next = nextPlayerBefore(horizon);
+            if (next == nullptr)
+                return;
+            if (producer.schedule({ static_cast<std::uint64_t>(next - players.data() + 1), next->nextFrame,
+                                    next->durationFrames, next->notes[next->nextNote], next->velocity, 1 })
                 != NoteSubmitResult::queued)
                 return;
-            nextNote = (nextNote + 1) % noteCount;
-            nextFrame += periodFrames;
+            next->nextNote = (next->nextNote + 1) % next->noteCount;
+            next->nextFrame += next->periodFrames;
         }
     }
 
@@ -96,16 +92,41 @@ private:
         return frames == 0 || frames > UINT32_MAX ? 0U : static_cast<std::uint32_t>(frames);
     }
 
+    struct Player {
+        std::array<std::uint8_t, 128> notes {};
+        std::size_t noteCount {};
+        std::size_t nextNote {};
+        std::uint32_t periodFrames {};
+        std::uint32_t durationFrames {};
+        std::uint8_t velocity { 100 };
+        double periodBeats {};
+        double durationBeats {};
+        std::uint64_t nextFrame {};
+    };
+
+    bool updatePlayerTiming(Player& player) noexcept
+    {
+        const auto frames = framesForPeriod(player.periodBeats);
+        const auto duration = framesForPeriod(player.durationBeats);
+        if (frames == 0 || duration == 0)
+            return false;
+        player.periodFrames = frames;
+        player.durationFrames = duration;
+        return true;
+    }
+
+    Player* nextPlayerBefore(std::uint64_t horizon) noexcept
+    {
+        Player* result = nullptr;
+        for (auto& player : players)
+            if (player.noteCount != 0 && player.periodFrames != 0 && player.nextFrame < horizon
+                && (result == nullptr || player.nextFrame < result->nextFrame))
+                result = &player;
+        return result;
+    }
+
     NoteEventProducer<Capacity> producer;
     SchedulerTiming timing;
-    std::array<std::uint8_t, 128> notes {};
-    std::size_t noteCount {};
-    std::size_t nextNote {};
-    std::uint32_t periodFrames {};
-    std::uint32_t durationFrames {};
-    std::uint8_t velocity { 100 };
-    double periodBeats {};
-    double durationBeats {};
-    std::uint64_t nextFrame {};
+    std::array<Player, maxPlayers> players {};
 };
 }

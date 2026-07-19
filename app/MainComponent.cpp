@@ -8,14 +8,14 @@ MainComponent::MainComponent()
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
-    diagnostics.setText("Ready. Add an instrument channel in P1.4 before notes can be heard.", juce::dontSendNotification);
+    diagnostics.setText("Ready. Load the controlled Bass fixture in Mixer, then evaluate a pattern.", juce::dontSendNotification);
     executeButton.setButtonText("Execute block (Ctrl+Return)");
     executeButton.setTooltip("Evaluate the current code block (Ctrl+Return). Shift+Return evaluates the current line.");
     executeButton.onClick = [this] { executeEditorText(currentCodeBlock()); };
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(executeButton);
     liveCodingPanel.addAndMakeVisible(diagnostics);
-    mixerPlaceholder.setText("Mixer - one Bass channel arrives in P1.4", juce::dontSendNotification);
+    mixerPlaceholder.setText("Mixer - one controlled Bass VST3 channel", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
     loadBassButton.onClick = [this] {
         if (audioShell.state() == fishpond::AudioShellState::running) {
@@ -130,15 +130,17 @@ void MainComponent::timerCallback()
             const auto validation = runtime.evaluateEditorText(completion.source, bassReady);
             if (validation.accepted) {
                 const auto notes = runtime.notesFromEditorText(completion.source);
+                const auto playerIndex = runtime.playerIndexFromEditorText(completion.source);
                 const auto periodBeats = runtime.periodBeatsFromEditorText(completion.source);
                 const auto durationBeats = runtime.durationBeatsFromEditorText(completion.source);
                 const auto velocity = runtime.velocityFromEditorText(completion.source);
-                if (! periodBeats || ! durationBeats || ! velocity) {
-                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: p, dur, and velocity must be valid", juce::dontSendNotification);
+                if (! playerIndex || ! periodBeats || ! durationBeats || ! velocity) {
+                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: player, p, dur, and velocity must be valid", juce::dontSendNotification);
                     continue;
                 }
-                bassScheduler.replace(notes, *periodBeats, static_cast<std::uint8_t>(*velocity), *durationBeats);
-                diagnostics.setText("Playing " + juce::String(notes.size()) + " Bass-note pattern",
+                bassScheduler.replace(*playerIndex, notes, *periodBeats, static_cast<std::uint8_t>(*velocity), *durationBeats);
+                diagnostics.setText("Playing " + juce::String(notes.size()) + " Bass-note pattern on P"
+                                        + juce::String::charToString(static_cast<juce::juce_wchar>('a' + *playerIndex)),
                                     juce::dontSendNotification);
             } else
                 diagnostics.setText(validation.diagnostic, juce::dontSendNotification);

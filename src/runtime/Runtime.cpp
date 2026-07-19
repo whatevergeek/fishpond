@@ -183,6 +183,19 @@ std::vector<int> Runtime::notesFromEditorText(const std::string& source) const
         ? std::vector<int> {} : parseNotes(source.substr(firstQuote + 1, secondQuote - firstQuote - 1));
 }
 
+std::optional<std::size_t> Runtime::playerIndexFromEditorText(const std::string& source) const
+{
+    const auto assignment = source.find(">> n(");
+    if (assignment == std::string::npos)
+        return std::nullopt;
+    const auto player = source.rfind('P', assignment);
+    if (player == std::string::npos || player + 1 >= assignment)
+        return std::nullopt;
+    const auto letter = source[player + 1];
+    return letter >= 'a' && letter <= 'z' ? std::optional<std::size_t>(static_cast<std::size_t>(letter - 'a'))
+                                          : std::nullopt;
+}
+
 std::optional<double> Runtime::periodBeatsFromEditorText(const std::string& source) const
 {
     const auto marker = source.find("p=");

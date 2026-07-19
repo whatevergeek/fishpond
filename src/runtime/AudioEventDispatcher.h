@@ -24,17 +24,16 @@ public:
     {
         if (queue.consumePanic(observedPanic)) {
             queue.discardPendingFromConsumer();
+            pendingCount = 0;
             return { 0, 0, true };
         }
 
         const auto blockEnd = blockStart + blockFrames;
-        std::size_t count = 0;
         NoteEvent event;
-        while (count < Capacity && queue.tryPeek(event) && event.targetSampleFrame < blockEnd) {
-            queue.tryPop(events[count++]);
-        }
+        while (pendingCount < Capacity && queue.tryPop(event))
+            events[pendingCount++] = event;
 
-        for (std::size_t index = 1; index < count; ++index) {
+        for (std::size_t index = 1; index < pendingCount; ++index) {
             auto candidate = events[index];
             auto position = index;
             while (position > 0 && precedes(candidate, events[position - 1])) {
@@ -45,14 +44,18 @@ public:
         }
 
         EventDrainResult result;
-        for (std::size_t index = 0; index < count; ++index) {
-            const auto& ready = events[index];
+        std::size_t dispatched = 0;
+        while (dispatched < pendingCount && events[dispatched].targetSampleFrame < blockEnd) {
+            const auto& ready = events[dispatched++];
             const auto late = ready.targetSampleFrame < blockStart;
             const auto offset = late ? 0U : static_cast<std::uint32_t>(ready.targetSampleFrame - blockStart);
             handler(ready, offset);
             ++result.dispatched;
             result.late += late ? 1U : 0U;
         }
+        for (std::size_t index = dispatched; index < pendingCount; ++index)
+            events[index - dispatched] = events[index];
+        pendingCount -= dispatched;
         return result;
     }
 
@@ -64,5 +67,6 @@ private:
     }
 
     std::array<NoteEvent, Capacity> events {};
+    std::size_t pendingCount {};
 };
 }

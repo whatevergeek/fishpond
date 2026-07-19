@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <optional>
 #include <vector>
@@ -15,6 +16,7 @@ public:
     EvaluationResult evaluateEditorText(const std::string& source, bool bassReady = false) const;
     std::optional<int> firstNoteFromEditorText(const std::string& source) const;
     std::vector<int> notesFromEditorText(const std::string& source) const;
+    std::optional<std::size_t> playerIndexFromEditorText(const std::string& source) const;
     std::optional<double> periodBeatsFromEditorText(const std::string& source) const;
     std::optional<double> durationBeatsFromEditorText(const std::string& source) const;
     std::optional<int> velocityFromEditorText(const std::string& source) const;

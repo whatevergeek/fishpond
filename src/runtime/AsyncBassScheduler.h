@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <mutex>
@@ -34,10 +35,17 @@ public:
     AsyncBassScheduler(const AsyncBassScheduler&) = delete;
     AsyncBassScheduler& operator=(const AsyncBassScheduler&) = delete;
 
-    void setTiming(SchedulerTiming timing) { submit({ CommandType::timing, std::move(timing) }); }
-    void replace(std::vector<int> notes, double periodBeats, std::uint8_t velocity, double durationBeats)
+    void setTiming(SchedulerTiming timing)
+    {
+        Command command { CommandType::timing };
+        command.timing = std::move(timing);
+        submit(std::move(command));
+    }
+    void replace(std::size_t playerIndex, std::vector<int> notes, double periodBeats, std::uint8_t velocity,
+                 double durationBeats)
     {
         Command command { CommandType::replace };
+        command.playerIndex = playerIndex;
         command.notes = std::move(notes);
         command.periodBeats = periodBeats;
         command.velocity = velocity;
@@ -50,6 +58,7 @@ private:
     enum class CommandType { timing, replace, clear };
     struct Command {
         CommandType type;
+        std::size_t playerIndex {};
         SchedulerTiming timing {};
         std::vector<int> notes;
         double periodBeats {};
@@ -86,8 +95,8 @@ private:
                 }
                 else if (command.type == CommandType::replace) {
                     queue.requestPanic();
-                    scheduler.replace(command.notes, command.periodBeats, command.velocity, command.durationBeats,
-                                      renderFrame.load(std::memory_order_acquire));
+                    scheduler.replace(command.playerIndex, command.notes, command.periodBeats, command.velocity,
+                                      command.durationBeats, renderFrame.load(std::memory_order_acquire));
                 } else {
                     scheduler.clear();
                     queue.requestPanic();

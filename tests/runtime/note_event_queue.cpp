@@ -49,18 +49,24 @@ int main(int argc, char** argv)
             || ! dispatchQueue.tryPush(event(110, 3)) || ! dispatchQueue.tryPush(event(140, 4)))
             return 1;
         std::uint64_t panicGeneration = 0;
-        std::uint64_t emittedSequences[3] {};
-        std::uint32_t offsets[3] {};
+        std::uint64_t emittedSequences[4] {};
+        std::uint32_t offsets[4] {};
         std::size_t emitted = 0;
         const auto result = dispatcher.drain(dispatchQueue, 100, 20, panicGeneration,
             [&] (const fishpond::NoteEvent& ready, std::uint32_t offset) {
                 emittedSequences[emitted] = ready.sequence;
                 offsets[emitted++] = offset;
             });
-        return result.dispatched == 3 && result.late == 0 && ! result.panic
-            && emitted == 3 && emittedSequences[0] == 3 && emittedSequences[1] == 5
-            && emittedSequences[2] == 2 && offsets[0] == 10 && offsets[1] == 10 && offsets[2] == 15
-            && dispatchQueue.tryPop(received) && received.sequence == 4 ? 0 : 1;
+        if (! (result.dispatched == 3 && result.late == 0 && ! result.panic
+               && emitted == 3 && emittedSequences[0] == 3 && emittedSequences[1] == 5
+               && emittedSequences[2] == 2 && offsets[0] == 10 && offsets[1] == 10 && offsets[2] == 15))
+            return 1;
+        const auto later = dispatcher.drain(dispatchQueue, 120, 21, panicGeneration,
+            [&] (const fishpond::NoteEvent& ready, std::uint32_t offset) {
+                emittedSequences[emitted] = ready.sequence;
+                offsets[emitted++] = offset;
+            });
+        return later.dispatched == 1 && emitted == 4 && emittedSequences[3] == 4 && offsets[3] == 20 ? 0 : 1;
     }
 
     if (test == "note-reservation") {
@@ -90,7 +96,7 @@ int main(int argc, char** argv)
         fishpond::BassPlayerScheduler<4> scheduler(scheduledQueue);
         if (! scheduler.setTiming({ 44'100.0, 128, 60.0 })
             || scheduler.setTiming({ 0.0, 128, 60.0 })
-            || ! scheduler.replace({ 36, 48 }, 0.5, 100, 0.5, 1'000))
+            || ! scheduler.replace(0, { 36, 48 }, 0.5, 100, 0.5, 1'000))
             return 1;
         scheduler.pump(1'000);
         if (! scheduledQueue.tryPop(received) || received.type != fishpond::NoteEventType::noteOn
@@ -102,7 +108,7 @@ int main(int argc, char** argv)
         fishpond::NoteEventQueue<2> tempoQueue;
         fishpond::BassPlayerScheduler<2> tempoScheduler(tempoQueue);
         if (! tempoScheduler.setTiming({ 48'000.0, 256, 120.0 })
-            || ! tempoScheduler.replace({ 60 }, 1.0, 100, 1.0, 0))
+            || ! tempoScheduler.replace(0, { 60 }, 1.0, 100, 1.0, 0))
             return 1;
         tempoScheduler.pump(0);
         if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 256)
@@ -115,6 +121,63 @@ int main(int argc, char** argv)
         if (! tempoQueue.tryPop(received) || received.targetSampleFrame != 24'256)
             return 1;
         return tempoQueue.tryPop(received) && received.targetSampleFrame == 72'256 ? 0 : 1;
+    }
+
+    if (test == "scheduler-multiple") {
+        fishpond::NoteEventQueue<8> scheduledQueue;
+        fishpond::BassPlayerScheduler<8> scheduler(scheduledQueue);
+        if (! scheduler.setTiming({ 48'000.0, 256, 120.0 })
+            || ! scheduler.replace(0, { 36 }, 1.0, 100, 0.5, 0)
+            || ! scheduler.replace(1, { 48 }, 0.5, 80, 0.25, 0))
+            return 1;
+        scheduler.pump(0);
+        fishpond::AudioEventDispatcher<8> dispatcher;
+        std::uint64_t panicGeneration = 0;
+        fishpond::NoteEvent dispatched[4] {};
+        std::size_t count = 0;
+        const auto result = dispatcher.drain(scheduledQueue, 0, 13'000, panicGeneration,
+            [&] (const fishpond::NoteEvent& event, std::uint32_t) { dispatched[count++] = event; });
+        return result.dispatched == 4 && count == 4
+            && dispatched[0].channelId == 1 && dispatched[0].type == fishpond::NoteEventType::noteOn
+            && dispatched[1].channelId == 2 && dispatched[1].type == fishpond::NoteEventType::noteOn
+            && dispatched[2].channelId == 2 && dispatched[2].type == fishpond::NoteEventType::noteOff
+            && dispatched[3].channelId == 1 && dispatched[3].type == fishpond::NoteEventType::noteOff ? 0 : 1;
+    }
+
+    if (test == "scheduler-validation-profile") {
+        fishpond::NoteEventQueue<8192> scheduledQueue;
+        fishpond::BassPlayerScheduler<8192> scheduler(scheduledQueue);
+        fishpond::AudioEventDispatcher<8192> dispatcher;
+        if (! scheduler.setTiming({ 48'000.0, 256, 120.0 })
+            || ! scheduler.replace(0, { 36, 38 }, 0.5, 100, 0.25, 0)
+            || ! scheduler.replace(1, { 48 }, 1.0, 80, 0.5, 0))
+            return 1;
+        std::uint64_t panicGeneration = 0;
+        std::uint64_t frame = 0;
+        std::uint32_t on[2] {}, off[2] {};
+        std::uint32_t late {};
+        bool panic {};
+        const auto drain = [&] {
+            const auto result = dispatcher.drain(scheduledQueue, frame, 256, panicGeneration,
+                [&] (const fishpond::NoteEvent& event, std::uint32_t) {
+                    const auto index = static_cast<std::size_t>(event.channelId - 1);
+                    if (index < 2)
+                        (event.type == fishpond::NoteEventType::noteOn ? on[index] : off[index])++;
+                });
+            late += result.late;
+            panic = panic || result.panic;
+        };
+        for (; frame < 5'760'000; frame += 256) {
+            scheduler.pump(frame);
+            drain();
+            if (scheduledQueue.sizeApproximate() >= scheduledQueue.capacity())
+                return 1;
+        }
+        scheduler.clear();
+        for (int block = 0; block < 64; ++block, frame += 256)
+            drain();
+        return ! panic && late == 0 && on[0] > 0 && on[1] > 0 && on[0] == off[0] && on[1] == off[1]
+            && scheduledQueue.sizeApproximate() == 0 ? 0 : 1;
     }
 
     return 2;
