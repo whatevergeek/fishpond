@@ -64,13 +64,13 @@ is missing or disabled. The P1 runtime corpus remains separately pending.
 
 The Phase 0 evidence package records JUCE VST3/AU smoke and platform-runner
 status with the GitHub Actions run and artifact name that produced each result.
-The current published evidence is run
+The initial build-contract evidence is run
 [`29654991101`](https://github.com/whatevergeek/fishpond/actions/runs/29654991101):
-macOS, Windows, Linux, and the macOS JUCE VST3/AU smoke job passed. A future
-required external check remains `not-run` until its own run and artifact are
-recorded; it is never treated as passing merely because it is registered.
-The JUCE lifecycle fixture is also required on Windows and Linux; those new
-runner-specific checks remain `not-run` until their CI artifacts are published.
+macOS, Windows, Linux, and the macOS JUCE VST3/AU smoke job passed. The
+cross-platform JUCE lifecycle evidence is run
+[`29666295778`](https://github.com/whatevergeek/fishpond/actions/runs/29666295778):
+the Windows and Linux lifecycle jobs also passed. Required external checks are
+only marked passing after their own run and artifact are recorded.
 
 ## Adding the first JUCE target
 

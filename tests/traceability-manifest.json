@@ -6,8 +6,8 @@
     "juce_au_smoke_macos": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29654991101","artifact":"p0-juce-smoke-macos"},
     "windows_runner": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29654991101","artifact":"p0-evidence-windows-2022"},
     "linux_runner": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29654991101","artifact":"p0-evidence-ubuntu-24.04"},
-    "juce_lifecycle_windows": {"status":"not-run"},
-    "juce_lifecycle_linux": {"status":"not-run"}
+    "juce_lifecycle_windows": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29666295778","artifact":"p0-juce-lifecycle-windows-2022"},
+    "juce_lifecycle_linux": {"status":"passed","run":"https://github.com/whatevergeek/fishpond/actions/runs/29666295778","artifact":"p0-juce-lifecycle-ubuntu-24.04"}
   },
   "tests": [
     {"id":"UT_BuildContract_Compiles","phase":"P0","required":true},
