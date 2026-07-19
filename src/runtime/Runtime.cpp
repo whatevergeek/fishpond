@@ -1,4 +1,5 @@
 #include "runtime/Runtime.h"
+#include "mixer/ChannelRegistry.h"
 
 #include <algorithm>
 #include <cctype>
@@ -166,6 +167,27 @@ EvaluationResult Runtime::evaluateEditorText(const std::string& source, bool bas
     if (normalize(target) == "bass" && bassReady)
         return { true, "Scheduled Bass note" };
     return { false, "FP_TARGET_UNAVAILABLE: \"" + target + "\" has no ready instrument channel (arrives in P1.4)" };
+}
+
+EvaluationResult Runtime::evaluateEditorText(const std::string& source, const ChannelRegistry& channels,
+                                             const std::vector<std::uint64_t>& readyChannelIds) const
+{
+    const auto assignment = source.find(">> n(");
+    const auto firstQuote = source.find('"', assignment == std::string::npos ? 0 : assignment);
+    const auto secondQuote = firstQuote == std::string::npos ? std::string::npos : source.find('"', firstQuote + 1);
+    const auto targetMarker = source.find("target=");
+    if (assignment == std::string::npos || firstQuote == std::string::npos || secondQuote == std::string::npos
+        || targetMarker == std::string::npos)
+        return { false, "FP_SYNTAX_INVALID: expected Player >> n(\"C2\", target=\"name\", p=beats)" };
+
+    const auto targetQuote = source.find('"', targetMarker);
+    const auto targetEnd = targetQuote == std::string::npos ? std::string::npos : source.find('"', targetQuote + 1);
+    if (targetQuote == std::string::npos || targetEnd == std::string::npos)
+        return { false, "FP_PATTERN_VALUE_INVALID: notes and target must be valid" };
+    const auto channel = channels.resolve(source.substr(targetQuote + 1, targetEnd - targetQuote - 1));
+    if (! channel || std::find(readyChannelIds.begin(), readyChannelIds.end(), channel->id) == readyChannelIds.end())
+        return { false, "FP_TARGET_UNAVAILABLE: target has no ready instrument channel" };
+    return { true, "Scheduled instrument note" };
 }
 
 std::optional<int> Runtime::firstNoteFromEditorText(const std::string& source) const

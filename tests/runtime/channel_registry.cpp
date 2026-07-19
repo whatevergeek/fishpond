@@ -1,4 +1,5 @@
 #include "mixer/ChannelRegistry.h"
+#include "runtime/Runtime.h"
 
 #include <iostream>
 
@@ -22,6 +23,12 @@ int main(int argc, char** argv)
         if (! bass || ! registry.rename(bass->id, "Low End")) return 1;
         const auto resolved = registry.resolve("low_end");
         return resolved && resolved->id == bass->id && resolved->paneName == "Low End" ? 0 : 1;
+    }
+    if (test == "target-routing") {
+        const auto lead = registry.add("Glass Pad");
+        fishpond::Runtime runtime;
+        return lead && runtime.evaluateEditorText("Pa >> n(\"C4\", target=\"glass_pad\", p=1)", registry, { lead->id }).accepted
+            && ! runtime.evaluateEditorText("Pa >> n(\"C4\", target=\"missing\", p=1)", registry, { lead->id }).accepted ? 0 : 1;
     }
 
     std::cerr << "unknown test: " << test << '\n';

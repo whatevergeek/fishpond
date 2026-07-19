@@ -79,7 +79,14 @@ MainComponent::MainComponent()
     mixerPlaceholder.addAndMakeVisible(loadBassButton);
     mixerPlaceholder.addAndMakeVisible(chooseBassButton);
     openBassEditorButton.onClick = [this] { openBassEditor(); };
+    const auto bassChannel = channels.add("Bass");
+    jassert(bassChannel.has_value());
+    bassChannelId = bassChannel->id;
+    bassChannelName.setText("Bass", juce::dontSendNotification);
+    renameBassButton.onClick = [this] { renameBassChannel(); };
     mixerPlaceholder.addAndMakeVisible(openBassEditorButton);
+    mixerPlaceholder.addAndMakeVisible(bassChannelName);
+    mixerPlaceholder.addAndMakeVisible(renameBassButton);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
     tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);
 
@@ -155,6 +162,17 @@ void MainComponent::openBassEditor()
     bassEditorWindow->toFront(true);
 }
 
+void MainComponent::renameBassChannel()
+{
+    if (! channels.rename(bassChannelId, bassChannelName.getText().toStdString())) {
+        mixerPlaceholder.setText("FP_CHANNEL_NAME_INVALID: choose a unique non-empty name", juce::dontSendNotification);
+        return;
+    }
+    const auto channel = channels.resolve(bassChannelName.getText().toStdString());
+    mixerPlaceholder.setText("Channel renamed: " + bassChannelName.getText() + " (target=\"" + juce::String(channel->alias) + "\")",
+                             juce::dontSendNotification);
+}
+
 MainComponent::~MainComponent()
 {
     stopTimer();
@@ -214,7 +232,9 @@ void MainComponent::timerCallback()
                 if (patternSource.find(">> n(") == std::string::npos)
                     continue;
 
-                const auto validation = runtime.evaluateEditorText(patternSource, bassReady);
+                const auto validation = runtime.evaluateEditorText(patternSource, channels,
+                                                                     bassReady ? std::vector<std::uint64_t> { bassChannelId }
+                                                                               : std::vector<std::uint64_t> {});
                 if (! validation.accepted) {
                     diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
                     patterns.clear();
@@ -296,6 +316,8 @@ void MainComponent::resized()
     loadBassButton.setBounds(mixerActions.removeFromLeft(160));
     chooseBassButton.setBounds(mixerActions.removeFromLeft(120));
     openBassEditorButton.setBounds(mixerActions.removeFromLeft(130));
+    bassChannelName.setBounds(mixerActions.removeFromLeft(160));
+    renameBassButton.setBounds(mixerActions.removeFromLeft(80));
 }
 
 void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)

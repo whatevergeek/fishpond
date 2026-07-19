@@ -57,6 +57,7 @@ endforeach()
 add_executable(fishpond_p1_runtime
     runtime/sardine_compat.cpp
     "${PROJECT_SOURCE_DIR}/src/runtime/Runtime.cpp"
+    "${PROJECT_SOURCE_DIR}/src/mixer/ChannelRegistry.cpp"
 )
 target_link_libraries(fishpond_p1_runtime PRIVATE fishpond_build_config)
 target_include_directories(fishpond_p1_runtime PRIVATE "${PROJECT_SOURCE_DIR}/src")
@@ -64,14 +65,17 @@ target_include_directories(fishpond_p1_runtime PRIVATE "${PROJECT_SOURCE_DIR}/sr
 add_executable(fishpond_p2_channels
     runtime/channel_registry.cpp
     "${PROJECT_SOURCE_DIR}/src/mixer/ChannelRegistry.cpp"
+    "${PROJECT_SOURCE_DIR}/src/runtime/Runtime.cpp"
 )
 target_link_libraries(fishpond_p2_channels PRIVATE fishpond_build_config)
 target_include_directories(fishpond_p2_channels PRIVATE "${PROJECT_SOURCE_DIR}/src")
-foreach(test_id IN ITEMS UT_ChannelAliasDerivation UT_ChannelAliasCollision IT_ChannelRenamePreservesIdentity)
+foreach(test_id IN ITEMS UT_ChannelAliasDerivation UT_ChannelAliasCollision IT_ChannelRenamePreservesIdentity IT_ChannelTargetResolution)
     if(test_id STREQUAL "UT_ChannelAliasDerivation")
         set(test_argument "aliases")
     elseif(test_id STREQUAL "UT_ChannelAliasCollision")
         set(test_argument "collisions")
+    elseif(test_id STREQUAL "IT_ChannelTargetResolution")
+        set(test_argument "target-routing")
     else()
         set(test_argument "rename")
     endif()

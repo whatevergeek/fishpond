@@ -1,9 +1,12 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <optional>
 #include <vector>
+
+namespace fishpond { class ChannelRegistry; }
 
 namespace fishpond {
 struct EvaluationResult {
@@ -14,6 +17,8 @@ struct EvaluationResult {
 class Runtime {
 public:
     EvaluationResult evaluateEditorText(const std::string& source, bool bassReady = false) const;
+    EvaluationResult evaluateEditorText(const std::string& source, const ChannelRegistry& channels,
+                                        const std::vector<std::uint64_t>& readyChannelIds) const;
     std::optional<int> firstNoteFromEditorText(const std::string& source) const;
     std::vector<int> notesFromEditorText(const std::string& source) const;
     std::optional<std::size_t> playerIndexFromEditorText(const std::string& source) const;

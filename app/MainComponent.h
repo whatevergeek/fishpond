@@ -2,6 +2,7 @@
 
 #include "AudioShell.h"
 #include "host/ControlledVST3Bass.h"
+#include "mixer/ChannelRegistry.h"
 #include "runtime/AsyncBassScheduler.h"
 #include "runtime/PythonExecutionWorker.h"
 #include "runtime/AudioEventDispatcher.h"
@@ -28,6 +29,7 @@ private:
     void executeEditorText(const juce::String& source);
     void loadBassBundle(const juce::File& bundle);
     void openBassEditor();
+    void renameBassChannel();
     void timerCallback() override;
     void updateSchedulerTiming();
     juce::String currentLine() const;
@@ -50,6 +52,8 @@ private:
     std::uint64_t observedPanic {};
     juce::MidiBuffer bassMidi;
     std::unique_ptr<fishpond::ControlledVST3Bass> bass;
+    fishpond::ChannelRegistry channels;
+    std::uint64_t bassChannelId {};
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
@@ -59,6 +63,8 @@ private:
     juce::TextButton loadBassButton { "Load Bass fixture" };
     juce::TextButton chooseBassButton { "Load VST3..." };
     juce::TextButton openBassEditorButton { "Open plugin UI" };
+    juce::TextEditor bassChannelName { "Bass" };
+    juce::TextButton renameBassButton { "Rename" };
     std::unique_ptr<juce::FileChooser> bassPluginChooser;
     std::unique_ptr<juce::DocumentWindow> bassEditorWindow;
     juce::Label deviceStatus;

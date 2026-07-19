@@ -8,6 +8,7 @@ target_sources(FishpondApp PRIVATE
     "${PROJECT_SOURCE_DIR}/src/AudioShell.cpp"
     "${PROJECT_SOURCE_DIR}/src/host/ControlledVST3Bass.cpp"
     "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"
+    "${PROJECT_SOURCE_DIR}/src/mixer/ChannelRegistry.cpp"
     "${PROJECT_SOURCE_DIR}/src/runtime/Runtime.cpp"
 )
 
