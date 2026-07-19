@@ -53,3 +53,21 @@ add_custom_target(run-single-channel-host-spike
     DEPENDS fishpond_single_channel_host_spike
     VERBATIM
 )
+
+add_executable(fishpond_vst3_fixture_load_spike
+    VST3FixtureLoadSpike.cpp
+    "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"
+)
+target_include_directories(fishpond_vst3_fixture_load_spike PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(fishpond_vst3_fixture_load_spike PRIVATE juce::juce_audio_utils)
+target_compile_definitions(fishpond_vst3_fixture_load_spike PRIVATE
+    JUCE_PLUGINHOST_VST3=1
+    FISHPOND_FIXTURE_VST3_PATH="$<TARGET_BUNDLE_DIR:FishpondFixtureInstrument_VST3>"
+)
+add_dependencies(fishpond_vst3_fixture_load_spike FishpondFixtureInstrument_VST3)
+
+add_custom_target(run-vst3-fixture-load-spike
+    COMMAND fishpond_vst3_fixture_load_spike
+    DEPENDS fishpond_vst3_fixture_load_spike
+    VERBATIM
+)
