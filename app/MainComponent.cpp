@@ -41,14 +41,14 @@ MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
-    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# silence() stops all players; silence(Pa) or Pa.stop() stops one\nPa >> n(\"C2 C3\", target=\"bass\", p=0.5)\n");
+    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# silence() stops all players; silence(Pa) or Pa.stop() stops one\nPa >> n(\"C2 C3\", target=\"instrument_01\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
-    diagnostics.setText("Ready. Load the controlled Bass fixture in Mixer, then evaluate a pattern.", juce::dontSendNotification);
+    diagnostics.setText("Ready. Load an instrument in Mixer, then evaluate a pattern.", juce::dontSendNotification);
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(diagnostics);
-    mixerPlaceholder.setText("Mixer - one controlled Bass VST3 channel", juce::dontSendNotification);
+    mixerPlaceholder.setText("Mixer - two instrument slots", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
     loadBassButton.onClick = [this] { loadBassBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH)); };
     chooseBassButton.onClick = [this] {
@@ -66,7 +66,7 @@ MainComponent::MainComponent()
        #else
         auto vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory);
        #endif
-        bassPluginChooser = std::make_unique<juce::FileChooser>("Select a VST3 instrument", vst3Folder, "*.vst3");
+        bassPluginChooser = std::make_unique<juce::FileChooser>("Select Instrument 01 VST3", vst3Folder, "*.vst3");
         bassPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
                                            | juce::FileBrowserComponent::canSelectFiles
                                            | juce::FileBrowserComponent::canSelectDirectories,
@@ -80,18 +80,18 @@ MainComponent::MainComponent()
     mixerPlaceholder.addAndMakeVisible(loadBassButton);
     mixerPlaceholder.addAndMakeVisible(chooseBassButton);
     openBassEditorButton.onClick = [this] { openBassEditor(); };
-    const auto bassChannel = channels.add("Bass");
+    const auto bassChannel = channels.add("Instrument 01");
     jassert(bassChannel.has_value());
     bassChannelId = bassChannel->id;
-    bassChannelName.setText("Bass", juce::dontSendNotification);
+    bassChannelName.setText("Instrument 01", juce::dontSendNotification);
     renameBassButton.onClick = [this] { renameBassChannel(); };
-    const auto leadChannel = channels.add("Lead");
+    const auto leadChannel = channels.add("Instrument 02");
     jassert(leadChannel.has_value());
     leadChannelId = leadChannel->id;
-    leadChannelName.setText("Lead", juce::dontSendNotification);
+    leadChannelName.setText("Instrument 02", juce::dontSendNotification);
     loadLeadButton.onClick = [this] { loadLeadBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH)); };
     chooseLeadButton.onClick = [this] {
-        leadPluginChooser = std::make_unique<juce::FileChooser>("Select a Lead VST3 instrument", juce::File(), "*.vst3");
+        leadPluginChooser = std::make_unique<juce::FileChooser>("Select Instrument 02 VST3", juce::File(), "*.vst3");
         leadPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
                                            | juce::FileBrowserComponent::canSelectFiles
                                            | juce::FileBrowserComponent::canSelectDirectories,
@@ -153,7 +153,7 @@ MainComponent::MainComponent()
 void MainComponent::loadBassBundle(const juce::File& bundle)
 {
         if (audioShell.state() == fishpond::AudioShellState::running) {
-            mixerPlaceholder.setText("Stop audio before loading a Bass VST3", juce::dontSendNotification);
+            mixerPlaceholder.setText("Stop audio before loading Instrument 01", juce::dontSendNotification);
             return;
         }
         bassEditorWindow.reset();
@@ -161,21 +161,21 @@ void MainComponent::loadBassBundle(const juce::File& bundle)
         std::string diagnostic;
         const auto prepared = bass->prepareBundle(bundle, diagnostic);
         const auto committed = prepared && bass->commitAtBlockBoundary(diagnostic);
-        mixerPlaceholder.setText(committed ? "Bass VST3 ready: " + bundle.getFileName() : diagnostic,
+        mixerPlaceholder.setText(committed ? "Instrument 01 ready: " + bundle.getFileName() : diagnostic,
                                  juce::dontSendNotification);
 }
 
 void MainComponent::loadLeadBundle(const juce::File& bundle)
 {
     if (audioShell.state() == fishpond::AudioShellState::running) {
-        mixerPlaceholder.setText("Stop audio before loading a Lead VST3", juce::dontSendNotification);
+        mixerPlaceholder.setText("Stop audio before loading Instrument 02", juce::dontSendNotification);
         return;
     }
     lead = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
     std::string diagnostic;
     const auto prepared = lead->prepareBundle(bundle, diagnostic);
     const auto committed = prepared && lead->commitAtBlockBoundary(diagnostic);
-    mixerPlaceholder.setText(committed ? "Lead VST3 ready: " + bundle.getFileName() : diagnostic,
+    mixerPlaceholder.setText(committed ? "Instrument 02 ready: " + bundle.getFileName() : diagnostic,
                              juce::dontSendNotification);
 }
 
@@ -188,7 +188,7 @@ void MainComponent::openBassEditor()
     }
     auto* processor = bass != nullptr ? bass->activeProcessorForEditor() : nullptr;
     if (processor == nullptr || bass->state() != fishpond::SingleChannelState::ready) {
-        mixerPlaceholder.setText("Load a Bass VST3 before opening its UI", juce::dontSendNotification);
+        mixerPlaceholder.setText("Load Instrument 01 before opening its UI", juce::dontSendNotification);
         return;
     }
     if (! processor->hasEditor()) {
@@ -260,7 +260,7 @@ void MainComponent::timerCallback()
         const auto command = juce::String(completion.source).trim();
         if (command == "silence()" || command == "panic()") {
             bassScheduler.clear();
-            diagnostics.setText(command == "panic()" ? "Panic: cleared Bass events" : "Silenced active players",
+            diagnostics.setText(command == "panic()" ? "Panic: cleared instrument events" : "Silenced active players",
                                 juce::dontSendNotification);
             continue;
         }
