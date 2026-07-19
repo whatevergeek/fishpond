@@ -4,7 +4,7 @@ MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true);
     liveCodingEditor.setText("# P1.1 audio shell\n# Live coding arrives in P1.2\n");
-    mixerPlaceholder.setText("Mixer — one Bass channel arrives in P1.4", juce::dontSendNotification);
+    mixerPlaceholder.setText("Mixer - one Bass channel arrives in P1.4", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingEditor, false);
     tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);

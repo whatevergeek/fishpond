@@ -2,9 +2,8 @@
 
 ## Scope
 
-This is the P0.2 build skeleton. It verifies the C++17/CMake/CTest contract
-without downloading JUCE or starting an embedded interpreter. The first JUCE
-host target and CPython embedding arrive in later P0 packages.
+Fishpond currently provides the P0 verification suite and the P1.1 macOS
+desktop/audio shell. The live-coding runtime and plugin host are later P1 work.
 
 ## Approved pins
 
@@ -90,6 +89,33 @@ cmake --preset dev-macos -DFISHPOND_FETCH_JUCE=ON
 The verified checkout must be the recorded `8.0.13` tag object. Never add a
 Sardine package dependency: Fishpond implements its own compatible runtime as
 recorded in the SDD repository's `sardine-compatibility-decision.md`.
+
+## Build and run the macOS desktop app
+
+From the Fishpond source repository, configure the app preset, build its
+target, then open the resulting bundle:
+
+```sh
+cmake --preset app-macos -DFISHPOND_FETCH_JUCE=ON
+cmake --build --preset app-macos --target FishpondApp
+open build/app-macos/app/FishpondApp_artefacts/Debug/Fishpond.app
+```
+
+The first command fetches the pinned JUCE `8.0.13` source and therefore needs
+network access. If you already have a verified JUCE checkout (including the
+fixture checkout created by `juce-fixture-macos`), configure with that source
+instead:
+
+```sh
+cmake --preset app-macos \
+  -DFISHPOND_JUCE_SOURCE_DIR="$PWD/build/juce-fixture-macos/_deps/juce-src"
+cmake --build --preset app-macos --target FishpondApp
+open build/app-macos/app/FishpondApp_artefacts/Debug/Fishpond.app
+```
+
+At this P1.1 stage, the app verifies the window, tab navigation, audio-device
+status, and start/stop lifecycle. The Live Coding editor is intentionally not
+executable yet; P1.2 introduces the runtime syntax.
 
 On macOS, build the real VST3 fixture with `cmake --preset juce-fixture-macos`
 then `cmake --build --preset juce-fixture-macos --target FishpondFixtureInstrument_VST3`.
