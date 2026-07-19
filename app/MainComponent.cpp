@@ -16,6 +16,19 @@ MainComponent::MainComponent()
     liveCodingPanel.addAndMakeVisible(diagnostics);
     mixerPlaceholder.setText("Mixer - one Bass channel arrives in P1.4", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
+    loadBassButton.onClick = [this] {
+        if (audioShell.state() == fishpond::AudioShellState::running) {
+            mixerPlaceholder.setText("Stop audio before loading the Bass fixture", juce::dontSendNotification);
+            return;
+        }
+        bass = std::make_unique<fishpond::ControlledVST3Bass>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
+        std::string diagnostic;
+        const auto prepared = bass->prepareBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH), diagnostic);
+        const auto committed = prepared && bass->commitAtBlockBoundary(diagnostic);
+        mixerPlaceholder.setText(committed ? "Bass - controlled VST3 fixture ready" : diagnostic,
+                                 juce::dontSendNotification);
+    };
+    mixerPlaceholder.addAndMakeVisible(loadBassButton);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
     tabs.addTab("Mixer", juce::Colours::darkgrey, &mixerPlaceholder, false);
 
@@ -128,6 +141,8 @@ void MainComponent::resized()
     executeButton.setBounds(actions.removeFromLeft(160));
     diagnostics.setBounds(liveArea.removeFromBottom(84));
     liveCodingEditor.setBounds(liveArea);
+    auto mixerArea = mixerPlaceholder.getLocalBounds().reduced(8);
+    loadBassButton.setBounds(mixerArea.removeFromTop(32).removeFromLeft(160));
 }
 
 void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
@@ -157,7 +172,10 @@ void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, f
                                                       int outputChannels, int samples,
                                                       const juce::AudioIODeviceCallbackContext&)
 {
-    for (int channel = 0; channel < outputChannels; ++channel)
-        if (output[channel] != nullptr)
-            juce::FloatVectorOperations::clear(output[channel], samples);
+    juce::AudioBuffer<float> audio(output, outputChannels, samples);
+    juce::MidiBuffer midi;
+    if (bass != nullptr)
+        bass->process(audio, midi);
+    else
+        audio.clear();
 }

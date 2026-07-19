@@ -52,6 +52,7 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "FISHPOND_FETCH_JUCE": "ON",
+        "FISHPOND_BUILD_JUCE_FIXTURES": "ON",
         "FISHPOND_BUILD_APP": "ON",
         "FISHPOND_ENABLE_EMBEDDED_PYTHON": "ON",
         "BUILD_TESTING": "OFF"

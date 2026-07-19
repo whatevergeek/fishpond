@@ -6,6 +6,8 @@ target_sources(FishpondApp PRIVATE
     Main.cpp
     MainComponent.cpp
     "${PROJECT_SOURCE_DIR}/src/AudioShell.cpp"
+    "${PROJECT_SOURCE_DIR}/src/host/ControlledVST3Bass.cpp"
+    "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"
     "${PROJECT_SOURCE_DIR}/src/runtime/Runtime.cpp"
 )
 
@@ -22,4 +24,8 @@ target_include_directories(FishpondApp PRIVATE
 target_compile_definitions(FishpondApp PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
+    JUCE_PLUGINHOST_VST3=1
+    FISHPOND_CONTROLLED_BASS_PATH="$<TARGET_BUNDLE_DIR:FishpondFixtureInstrument_VST3>"
 )
+
+add_dependencies(FishpondApp FishpondFixtureInstrument_VST3)
