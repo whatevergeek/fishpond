@@ -68,6 +68,16 @@ public:
         players = {};
     }
 
+    // A normal per-player stop leaves any already-reserved note-off in the
+    // queue to release naturally, while preventing future pattern steps.
+    bool remove(std::size_t playerIndex) noexcept
+    {
+        if (playerIndex >= players.size())
+            return false;
+        players[playerIndex] = {};
+        return true;
+    }
+
     void pump(std::uint64_t renderFrame) noexcept
     {
         const auto horizon = renderFrame + static_cast<std::uint64_t>(timing.blockSize) * 4;

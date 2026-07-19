@@ -53,9 +53,15 @@ public:
         submit(std::move(command));
     }
     void clear() { submit({ CommandType::clear }); }
+    void remove(std::size_t playerIndex)
+    {
+        Command command { CommandType::remove };
+        command.playerIndex = playerIndex;
+        submit(std::move(command));
+    }
 
 private:
-    enum class CommandType { timing, replace, clear };
+    enum class CommandType { timing, replace, remove, clear };
     struct Command {
         CommandType type;
         std::size_t playerIndex {};
@@ -97,6 +103,8 @@ private:
                     queue.requestPanic();
                     scheduler.replace(command.playerIndex, command.notes, command.periodBeats, command.velocity,
                                       command.durationBeats, renderFrame.load(std::memory_order_acquire));
+                } else if (command.type == CommandType::remove) {
+                    scheduler.remove(command.playerIndex);
                 } else {
                     scheduler.clear();
                     queue.requestPanic();

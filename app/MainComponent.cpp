@@ -22,6 +22,18 @@ struct PendingBassPattern {
     double durationBeats {};
     int velocity {};
 };
+
+std::optional<std::size_t> singlePlayerStopIndex(const juce::String& command)
+{
+    juce::String player;
+    if (command.startsWith("silence(P") && command.endsWithChar(')'))
+        player = command.substring(8, command.length() - 1);
+    else if (command.endsWith(".stop()"))
+        player = command.dropLastCharacters(7);
+    if (player.length() != 2 || player[0] != 'P' || player[1] < 'a' || player[1] > 'z')
+        return std::nullopt;
+    return static_cast<std::size_t>(player[1] - 'a');
+}
 }
 
 MainComponent::MainComponent()
@@ -182,6 +194,12 @@ void MainComponent::timerCallback()
         if (command == "silence()" || command == "panic()") {
             bassScheduler.clear();
             diagnostics.setText(command == "panic()" ? "Panic: cleared Bass events" : "Silenced active players",
+                                juce::dontSendNotification);
+            continue;
+        }
+        if (const auto playerIndex = singlePlayerStopIndex(command)) {
+            bassScheduler.remove(*playerIndex);
+            diagnostics.setText("Silenced P" + juce::String::charToString(static_cast<juce::juce_wchar>('a' + *playerIndex)),
                                 juce::dontSendNotification);
             continue;
         }

@@ -153,6 +153,23 @@ int main(int argc, char** argv)
             && dispatched[3].channelId == 1 && dispatched[3].type == fishpond::NoteEventType::noteOff ? 0 : 1;
     }
 
+    if (test == "scheduler-remove") {
+        fishpond::NoteEventQueue<8> scheduledQueue;
+        fishpond::BassPlayerScheduler<8> scheduler(scheduledQueue);
+        if (! scheduler.setTiming({ 48'000.0, 256, 120.0 })
+            || ! scheduler.replace(0, { 36 }, 1.0, 100, 0.5, 0)
+            || ! scheduler.replace(1, { 48 }, 1.0, 100, 0.5, 0)
+            || ! scheduler.remove(0))
+            return 1;
+        scheduler.pump(0);
+        fishpond::NoteEvent first, second;
+        return scheduledQueue.tryPop(first) && scheduledQueue.tryPop(second)
+            && first.channelId == 2 && second.channelId == 2
+            && first.type == fishpond::NoteEventType::noteOn
+            && second.type == fishpond::NoteEventType::noteOff
+            && ! scheduledQueue.tryPop(received) ? 0 : 1;
+    }
+
     if (test == "scheduler-validation-profile") {
         fishpond::NoteEventQueue<8192> scheduledQueue;
         fishpond::BassPlayerScheduler<8192> scheduler(scheduledQueue);
