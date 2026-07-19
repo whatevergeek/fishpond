@@ -31,6 +31,7 @@ private:
     void loadBassBundle(const juce::File& bundle);
     void loadLeadBundle(const juce::File& bundle);
     void openBassEditor();
+    void openLeadEditor();
     void renameBassChannel();
     void renameLeadChannel();
     void timerCallback() override;
@@ -66,18 +67,18 @@ private:
     juce::TextEditor liveCodingEditor;
     juce::TextEditor diagnostics;
     juce::Label mixerPlaceholder;
-    juce::TextButton loadBassButton { "Load Inst 01 fixture" };
     juce::TextButton chooseBassButton { "Load Inst 01 VST3..." };
     juce::TextButton openBassEditorButton { "Open Inst 01 UI" };
     juce::TextEditor bassChannelName { "Instrument 01" };
     juce::TextButton renameBassButton { "Rename" };
-    juce::TextButton loadLeadButton { "Load Inst 02 fixture" };
     juce::TextButton chooseLeadButton { "Load Inst 02 VST3..." };
+    juce::TextButton openLeadEditorButton { "Open Inst 02 UI" };
     juce::TextEditor leadChannelName { "Instrument 02" };
     juce::TextButton renameLeadButton { "Rename" };
     std::unique_ptr<juce::FileChooser> bassPluginChooser;
     std::unique_ptr<juce::FileChooser> leadPluginChooser;
     std::unique_ptr<juce::DocumentWindow> bassEditorWindow;
+    std::unique_ptr<juce::DocumentWindow> leadEditorWindow;
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
     juce::Label tempoLabel { {}, "120 BPM" };

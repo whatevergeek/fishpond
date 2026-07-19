@@ -50,7 +50,6 @@ MainComponent::MainComponent()
     liveCodingPanel.addAndMakeVisible(diagnostics);
     mixerPlaceholder.setText("Mixer - two instrument slots", juce::dontSendNotification);
     mixerPlaceholder.setJustificationType(juce::Justification::centred);
-    loadBassButton.onClick = [this] { loadBassBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH)); };
     chooseBassButton.onClick = [this] {
        #if JUCE_MAC
         auto vst3Folder = juce::File("/Library/Audio/Plug-Ins/VST3");
@@ -77,7 +76,6 @@ MainComponent::MainComponent()
                     loadBassBundle(bundle);
             });
     };
-    mixerPlaceholder.addAndMakeVisible(loadBassButton);
     mixerPlaceholder.addAndMakeVisible(chooseBassButton);
     openBassEditorButton.onClick = [this] { openBassEditor(); };
     const auto bassChannel = channels.add("Instrument 01");
@@ -89,7 +87,6 @@ MainComponent::MainComponent()
     jassert(leadChannel.has_value());
     leadChannelId = leadChannel->id;
     leadChannelName.setText("Instrument 02", juce::dontSendNotification);
-    loadLeadButton.onClick = [this] { loadLeadBundle(juce::File(FISHPOND_CONTROLLED_BASS_PATH)); };
     chooseLeadButton.onClick = [this] {
         leadPluginChooser = std::make_unique<juce::FileChooser>("Select Instrument 02 VST3", juce::File(), "*.vst3");
         leadPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
@@ -106,8 +103,9 @@ MainComponent::MainComponent()
     mixerPlaceholder.addAndMakeVisible(openBassEditorButton);
     mixerPlaceholder.addAndMakeVisible(bassChannelName);
     mixerPlaceholder.addAndMakeVisible(renameBassButton);
-    mixerPlaceholder.addAndMakeVisible(loadLeadButton);
     mixerPlaceholder.addAndMakeVisible(chooseLeadButton);
+    openLeadEditorButton.onClick = [this] { openLeadEditor(); };
+    mixerPlaceholder.addAndMakeVisible(openLeadEditorButton);
     mixerPlaceholder.addAndMakeVisible(leadChannelName);
     mixerPlaceholder.addAndMakeVisible(renameLeadButton);
     tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
@@ -171,6 +169,7 @@ void MainComponent::loadLeadBundle(const juce::File& bundle)
         mixerPlaceholder.setText("Stop audio before loading Instrument 02", juce::dontSendNotification);
         return;
     }
+    leadEditorWindow.reset();
     lead = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
     std::string diagnostic;
     const auto prepared = lead->prepareBundle(bundle, diagnostic);
@@ -198,6 +197,27 @@ void MainComponent::openBassEditor()
     bassEditorWindow = std::make_unique<PluginEditorWindow>(*processor);
     bassEditorWindow->setVisible(true);
     bassEditorWindow->toFront(true);
+}
+
+void MainComponent::openLeadEditor()
+{
+    if (leadEditorWindow != nullptr) {
+        leadEditorWindow->setVisible(true);
+        leadEditorWindow->toFront(true);
+        return;
+    }
+    auto* processor = lead != nullptr ? lead->activeProcessorForEditor() : nullptr;
+    if (processor == nullptr || lead->state() != fishpond::SingleChannelState::ready) {
+        mixerPlaceholder.setText("Load Instrument 02 before opening its UI", juce::dontSendNotification);
+        return;
+    }
+    if (! processor->hasEditor()) {
+        mixerPlaceholder.setText("This VST3 does not provide a plugin UI", juce::dontSendNotification);
+        return;
+    }
+    leadEditorWindow = std::make_unique<PluginEditorWindow>(*processor);
+    leadEditorWindow->setVisible(true);
+    leadEditorWindow->toFront(true);
 }
 
 void MainComponent::renameBassChannel()
@@ -373,14 +393,13 @@ void MainComponent::resized()
     liveCodingEditor.setBounds(liveArea);
     auto mixerArea = mixerPlaceholder.getLocalBounds().reduced(8);
     auto mixerActions = mixerArea.removeFromTop(32);
-    loadBassButton.setBounds(mixerActions.removeFromLeft(160));
-    chooseBassButton.setBounds(mixerActions.removeFromLeft(120));
+    chooseBassButton.setBounds(mixerActions.removeFromLeft(140));
     openBassEditorButton.setBounds(mixerActions.removeFromLeft(130));
     bassChannelName.setBounds(mixerActions.removeFromLeft(160));
     renameBassButton.setBounds(mixerActions.removeFromLeft(80));
     mixerActions = mixerArea.removeFromTop(32);
-    loadLeadButton.setBounds(mixerActions.removeFromLeft(160));
-    chooseLeadButton.setBounds(mixerActions.removeFromLeft(120));
+    chooseLeadButton.setBounds(mixerActions.removeFromLeft(140));
+    openLeadEditorButton.setBounds(mixerActions.removeFromLeft(130));
     leadChannelName.setBounds(mixerActions.removeFromLeft(160));
     renameLeadButton.setBounds(mixerActions.removeFromLeft(80));
 }
