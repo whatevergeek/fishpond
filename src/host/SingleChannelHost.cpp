@@ -9,8 +9,12 @@ bool SingleChannelHost::prepareInstrument(std::unique_ptr<juce::AudioProcessor> 
         return false;
     }
 
-    juce::AudioProcessor::BusesLayout layout;
-    layout.outputBuses.add(juce::AudioChannelSet::stereo());
+    auto layout = processor->getBusesLayout();
+    if (layout.outputBuses.isEmpty()) {
+        diagnostic = "FP_INSTRUMENT_LAYOUT: instrument has no main output bus";
+        return false;
+    }
+    layout.getChannelSet(false, 0) = juce::AudioChannelSet::stereo();
     if (! processor->checkBusesLayoutSupported(layout) || ! processor->setBusesLayout(layout)) {
         diagnostic = "FP_INSTRUMENT_LAYOUT: stereo output is required";
         return false;
