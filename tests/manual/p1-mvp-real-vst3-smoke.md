@@ -47,4 +47,14 @@ coverage.
    other three remain audible. Then execute `silence()` and confirm all four
    routes stop without a sustained note or application error.
 
+   To stop several players together, select the separate stop lines and use
+   **Shift+Return**. A control-only selection is applied line by line:
+
+   ```python
+   Pa.stop()
+   Pb.stop()
+   Pc.stop()
+   Pd.stop()
+   ```
+
 Record the selected plugin name and pass/fail result in the GenFlex audit.

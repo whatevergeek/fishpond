@@ -239,15 +239,36 @@ void MainComponent::timerCallback()
             updateSchedulerTiming();
         }
         const auto command = juce::String(completion.source).trim();
-        if (command == "silence()" || command == "panic()") {
+        juce::StringArray commandLines;
+        commandLines.addLines(juce::String(completion.source));
+        bool globalStopRequested {};
+        bool hasNonControlLine {};
+        std::vector<std::size_t> stoppedPlayers;
+        for (const auto& line : commandLines) {
+            const auto trimmedLine = line.trim();
+            if (trimmedLine.isEmpty() || trimmedLine.startsWithChar('#'))
+                continue;
+            if (trimmedLine == "silence()" || trimmedLine == "panic()") {
+                globalStopRequested = true;
+                continue;
+            }
+            if (const auto playerIndex = singlePlayerStopIndex(trimmedLine)) {
+                stoppedPlayers.push_back(*playerIndex);
+                continue;
+            }
+            hasNonControlLine = true;
+        }
+        if (! hasNonControlLine && globalStopRequested) {
             bassScheduler.clear();
             diagnostics.setText(command == "panic()" ? "Panic: cleared instrument events" : "Silenced active players",
                                 juce::dontSendNotification);
             continue;
         }
-        if (const auto playerIndex = singlePlayerStopIndex(command)) {
-            bassScheduler.remove(*playerIndex);
-            diagnostics.setText("Silenced P" + juce::String::charToString(static_cast<juce::juce_wchar>('a' + *playerIndex)),
+        if (! hasNonControlLine && ! stoppedPlayers.empty()) {
+            for (const auto playerIndex : stoppedPlayers)
+                bassScheduler.remove(playerIndex);
+            diagnostics.setText("Silenced " + juce::String(static_cast<int>(stoppedPlayers.size()))
+                                    + (stoppedPlayers.size() == 1 ? " player" : " players"),
                                 juce::dontSendNotification);
             continue;
         }

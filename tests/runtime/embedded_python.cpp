@@ -31,6 +31,9 @@ int main(int argc, char** argv)
         return runtime.evaluate("Pa >> n('C2', target='bass'); Pb >> n('D2', target='bass')").accepted
             && runtime.evaluate("silence(Pa); assert 'Pa' not in _fishpond_players and 'Pb' in _fishpond_players").accepted
             && runtime.evaluate("Pa >> n('E2', target='bass'); Pa.stop(); assert 'Pa' not in _fishpond_players and 'Pb' in _fishpond_players").accepted ? 0 : 1;
+    if (test == "multiple-player-stop")
+        return runtime.evaluate("Pa >> n('C2', target='bass')\nPb >> n('D2', target='bass')\nPc >> n('E2', target='bass')\nPd >> n('F2', target='bass')").accepted
+            && runtime.evaluate("Pa.stop()\nPb.stop()\nPc.stop()\nPd.stop()\nassert not _fishpond_players").accepted ? 0 : 1;
     if (test == "target-required") {
         const auto result = runtime.evaluate("Pa >> n('C2')");
         return ! result.accepted && result.diagnostic.find("FP_TARGET_REQUIRED") != std::string::npos ? 0 : 1;
