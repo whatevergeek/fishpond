@@ -14,14 +14,16 @@ bool SingleChannelHost::prepareInstrument(std::unique_ptr<juce::AudioProcessor> 
         diagnostic = "FP_INSTRUMENT_LAYOUT: instrument has no main output bus";
         return false;
     }
-    const auto isMonoOrStereo = [] (const juce::AudioChannelSet& channelSet) {
-        return channelSet == juce::AudioChannelSet::mono()
-            || channelSet == juce::AudioChannelSet::stereo();
+    const auto hasOneOrTwoOutputChannels = [] (const juce::AudioChannelSet& channelSet) {
+        // A VST3 may report a discrete bus (for example, "Discrete #0") rather
+        // than JUCE's named mono/stereo layouts. The host cares about the number
+        // of channels available for rendering, not the layout's speaker labels.
+        return channelSet.size() == 1 || channelSet.size() == 2;
     };
 
     // Prefer the plug-in's current main-output layout. Some VST3s expose a
     // valid default bus but reject every explicit setBusesLayout request.
-    if (! isMonoOrStereo(layout.getChannelSet(false, 0))) {
+    if (! hasOneOrTwoOutputChannels(layout.getChannelSet(false, 0))) {
         const auto setMainOutput = [&] (juce::AudioChannelSet channelSet) {
             auto candidate = layout;
             candidate.getChannelSet(false, 0) = channelSet;
