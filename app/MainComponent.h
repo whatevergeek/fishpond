@@ -4,16 +4,16 @@
 #include "host/ControlledVST3Bass.h"
 #include "mixer/ChannelRegistry.h"
 #include "runtime/AsyncBassScheduler.h"
-#include "runtime/PythonExecutionWorker.h"
 #include "runtime/AudioEventDispatcher.h"
+#include "runtime/PythonExecutionWorker.h"
 #include "runtime/Runtime.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 
-#include <memory>
-#include <atomic>
 #include <array>
+#include <atomic>
+#include <memory>
 #include <vector>
 
 class MainComponent final : public juce::Component,
@@ -27,13 +27,24 @@ public:
     void resized() override;
 
 private:
+    static constexpr std::size_t instrumentSlotCount = 4;
+
+    struct InstrumentSlot {
+        std::unique_ptr<fishpond::HostedInstrument> instrument;
+        std::uint64_t channelId {};
+        juce::TextButton chooseButton;
+        juce::TextButton openEditorButton;
+        juce::TextEditor channelName;
+        juce::TextButton renameButton;
+        std::unique_ptr<juce::FileChooser> chooser;
+        std::unique_ptr<juce::DocumentWindow> editorWindow;
+    };
+
     void executeEditorText(const juce::String& source);
-    void loadBassBundle(const juce::File& bundle);
-    void loadLeadBundle(const juce::File& bundle);
-    void openBassEditor();
-    void openLeadEditor();
-    void renameBassChannel();
-    void renameLeadChannel();
+    void chooseInstrument(std::size_t slotIndex);
+    void loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle);
+    void openInstrumentEditor(std::size_t slotIndex);
+    void renameInstrumentChannel(std::size_t slotIndex);
     void timerCallback() override;
     void updateSchedulerTiming();
     juce::String currentLine() const;
@@ -54,31 +65,16 @@ private:
     std::atomic<double> activeSampleRate { 48'000.0 };
     std::atomic<std::uint32_t> activeBlockSize { 512 };
     std::uint64_t observedPanic {};
-    std::array<juce::MidiBuffer, 2> channelMidi;
-    std::array<juce::AudioBuffer<float>, 2> channelAudio;
-    std::unique_ptr<fishpond::HostedInstrument> bass;
-    std::unique_ptr<fishpond::HostedInstrument> lead;
+    std::array<InstrumentSlot, instrumentSlotCount> instrumentSlots;
+    std::array<juce::MidiBuffer, instrumentSlotCount> channelMidi;
+    std::array<juce::AudioBuffer<float>, instrumentSlotCount> channelAudio;
     fishpond::ChannelRegistry channels;
-    std::uint64_t bassChannelId {};
-    std::uint64_t leadChannelId {};
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
     juce::TextEditor liveCodingEditor;
     juce::TextEditor diagnostics;
-    juce::Label mixerPlaceholder;
-    juce::TextButton chooseBassButton { "Load Inst 01 VST3..." };
-    juce::TextButton openBassEditorButton { "Open Inst 01 UI" };
-    juce::TextEditor bassChannelName { "Instrument 01" };
-    juce::TextButton renameBassButton { "Rename" };
-    juce::TextButton chooseLeadButton { "Load Inst 02 VST3..." };
-    juce::TextButton openLeadEditorButton { "Open Inst 02 UI" };
-    juce::TextEditor leadChannelName { "Instrument 02" };
-    juce::TextButton renameLeadButton { "Rename" };
-    std::unique_ptr<juce::FileChooser> bassPluginChooser;
-    std::unique_ptr<juce::FileChooser> leadPluginChooser;
-    std::unique_ptr<juce::DocumentWindow> bassEditorWindow;
-    std::unique_ptr<juce::DocumentWindow> leadEditorWindow;
+    juce::Label instrumentsPanel;
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
     juce::Label tempoLabel { {}, "120 BPM" };

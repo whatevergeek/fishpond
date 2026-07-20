@@ -30,6 +30,20 @@ int main(int argc, char** argv)
         return lead && runtime.evaluateEditorText("Pa >> n(\"C4\", target=\"glass_pad\", p=1)", registry, { lead->id }).accepted
             && ! runtime.evaluateEditorText("Pa >> n(\"C4\", target=\"missing\", p=1)", registry, { lead->id }).accepted ? 0 : 1;
     }
+    if (test == "four-instrument-routing") {
+        const auto one = registry.add("Instrument 01");
+        const auto two = registry.add("Instrument 02");
+        const auto three = registry.add("Instrument 03");
+        const auto four = registry.add("Instrument 04");
+        fishpond::Runtime runtime;
+        if (! one || ! two || ! three || ! four)
+            return 1;
+        const std::vector<std::uint64_t> ready { one->id, two->id, three->id, four->id };
+        return runtime.evaluateEditorText("Pa >> n(\"C3\", target=\"instrument_01\", p=1)", registry, ready).accepted
+            && runtime.evaluateEditorText("Pb >> n(\"D3\", target=\"instrument_02\", p=1)", registry, ready).accepted
+            && runtime.evaluateEditorText("Pc >> n(\"E3\", target=\"instrument_03\", p=1)", registry, ready).accepted
+            && runtime.evaluateEditorText("Pd >> n(\"F3\", target=\"instrument_04\", p=1)", registry, ready).accepted ? 0 : 1;
+    }
 
     std::cerr << "unknown test: " << test << '\n';
     return 2;

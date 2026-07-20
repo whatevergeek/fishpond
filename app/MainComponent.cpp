@@ -15,7 +15,7 @@ public:
     void closeButtonPressed() override { setVisible(false); }
 };
 
-struct PendingBassPattern {
+struct PendingInstrumentPattern {
     std::size_t playerIndex {};
     std::uint64_t channelId {};
     std::vector<std::vector<int>> noteSteps;
@@ -23,6 +23,31 @@ struct PendingBassPattern {
     double durationBeats {};
     int velocity {};
 };
+
+juce::String instrumentName(std::size_t slotIndex)
+{
+    return "Instrument " + juce::String(static_cast<int>(slotIndex + 1)).paddedLeft('0', 2);
+}
+
+juce::File defaultVst3Folder()
+{
+   #if JUCE_MAC
+    auto folder = juce::File("/Library/Audio/Plug-Ins/VST3");
+    if (! folder.exists())
+        folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                     .getChildFile("Library/Audio/Plug-Ins/VST3");
+    return folder;
+   #elif JUCE_WINDOWS
+    return juce::File("C:\\Program Files\\Common Files\\VST3");
+   #elif JUCE_LINUX
+    auto folder = juce::File("/usr/lib/vst3");
+    if (! folder.exists())
+        folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile(".vst3");
+    return folder;
+   #else
+    return juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+   #endif
+}
 
 std::optional<std::size_t> singlePlayerStopIndex(const juce::String& command)
 {
@@ -41,76 +66,39 @@ MainComponent::MainComponent()
 {
     liveCodingEditor.setMultiLine(true, true);
     liveCodingEditor.setReturnKeyStartsNewLine(true);
-    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n# {C3 E3 G3} plays a chord; silence() stops all players\nPa >> n(\"{C2 E2 G2}\", target=\"instrument_01\", p=0.5)\n");
+    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n"
+                             "# {C3 E3 G3} plays a chord; silence() stops all players\n"
+                             "Pa >> n(\"{C2 E2 G2}\", target=\"instrument_01\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setText("Ready. Load an instrument in Instruments, then evaluate a pattern.", juce::dontSendNotification);
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(diagnostics);
-    mixerPlaceholder.setText("Instruments - two instrument slots", juce::dontSendNotification);
-    mixerPlaceholder.setJustificationType(juce::Justification::centred);
-    chooseBassButton.onClick = [this] {
-       #if JUCE_MAC
-        auto vst3Folder = juce::File("/Library/Audio/Plug-Ins/VST3");
-        if (! vst3Folder.exists())
-            vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
-                             .getChildFile("Library/Audio/Plug-Ins/VST3");
-       #elif JUCE_WINDOWS
-        auto vst3Folder = juce::File("C:\\Program Files\\Common Files\\VST3");
-       #elif JUCE_LINUX
-        auto vst3Folder = juce::File("/usr/lib/vst3");
-        if (! vst3Folder.exists())
-            vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile(".vst3");
-       #else
-        auto vst3Folder = juce::File::getSpecialLocation(juce::File::userHomeDirectory);
-       #endif
-        bassPluginChooser = std::make_unique<juce::FileChooser>("Select Instrument 01 VST3", vst3Folder, "*.vst3");
-        bassPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
-                                           | juce::FileBrowserComponent::canSelectFiles
-                                           | juce::FileBrowserComponent::canSelectDirectories,
-            [this] (const juce::FileChooser& chooser) {
-                const auto bundle = chooser.getResult();
-                bassPluginChooser.reset();
-                if (bundle != juce::File())
-                    loadBassBundle(bundle);
-            });
-    };
-    mixerPlaceholder.addAndMakeVisible(chooseBassButton);
-    openBassEditorButton.onClick = [this] { openBassEditor(); };
-    const auto bassChannel = channels.add("Instrument 01");
-    jassert(bassChannel.has_value());
-    bassChannelId = bassChannel->id;
-    bassChannelName.setText("Instrument 01", juce::dontSendNotification);
-    renameBassButton.onClick = [this] { renameBassChannel(); };
-    const auto leadChannel = channels.add("Instrument 02");
-    jassert(leadChannel.has_value());
-    leadChannelId = leadChannel->id;
-    leadChannelName.setText("Instrument 02", juce::dontSendNotification);
-    chooseLeadButton.onClick = [this] {
-        leadPluginChooser = std::make_unique<juce::FileChooser>("Select Instrument 02 VST3", juce::File(), "*.vst3");
-        leadPluginChooser->launchAsync(juce::FileBrowserComponent::openMode
-                                           | juce::FileBrowserComponent::canSelectFiles
-                                           | juce::FileBrowserComponent::canSelectDirectories,
-            [this] (const juce::FileChooser& chooser) {
-                const auto bundle = chooser.getResult();
-                leadPluginChooser.reset();
-                if (bundle != juce::File())
-                    loadLeadBundle(bundle);
-            });
-    };
-    renameLeadButton.onClick = [this] { renameLeadChannel(); };
-    mixerPlaceholder.addAndMakeVisible(openBassEditorButton);
-    mixerPlaceholder.addAndMakeVisible(bassChannelName);
-    mixerPlaceholder.addAndMakeVisible(renameBassButton);
-    mixerPlaceholder.addAndMakeVisible(chooseLeadButton);
-    openLeadEditorButton.onClick = [this] { openLeadEditor(); };
-    mixerPlaceholder.addAndMakeVisible(openLeadEditorButton);
-    mixerPlaceholder.addAndMakeVisible(leadChannelName);
-    mixerPlaceholder.addAndMakeVisible(renameLeadButton);
-    tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
-    tabs.addTab("Instruments", juce::Colours::darkgrey, &mixerPlaceholder, false);
+    instrumentsPanel.setText("Instruments - four independent instrument slots", juce::dontSendNotification);
+    instrumentsPanel.setJustificationType(juce::Justification::centred);
 
+    for (std::size_t slotIndex = 0; slotIndex < instrumentSlots.size(); ++slotIndex) {
+        auto& slot = instrumentSlots[slotIndex];
+        const auto name = instrumentName(slotIndex);
+        const auto channel = channels.add(name.toStdString());
+        jassert(channel.has_value());
+        slot.channelId = channel->id;
+        slot.chooseButton.setButtonText("Load Inst " + juce::String(static_cast<int>(slotIndex + 1)).paddedLeft('0', 2) + " VST3...");
+        slot.openEditorButton.setButtonText("Open Inst " + juce::String(static_cast<int>(slotIndex + 1)).paddedLeft('0', 2) + " UI");
+        slot.channelName.setText(name, juce::dontSendNotification);
+        slot.renameButton.setButtonText("Rename");
+        slot.chooseButton.onClick = [this, slotIndex] { chooseInstrument(slotIndex); };
+        slot.openEditorButton.onClick = [this, slotIndex] { openInstrumentEditor(slotIndex); };
+        slot.renameButton.onClick = [this, slotIndex] { renameInstrumentChannel(slotIndex); };
+        instrumentsPanel.addAndMakeVisible(slot.chooseButton);
+        instrumentsPanel.addAndMakeVisible(slot.openEditorButton);
+        instrumentsPanel.addAndMakeVisible(slot.channelName);
+        instrumentsPanel.addAndMakeVisible(slot.renameButton);
+    }
+
+    tabs.addTab("Live Coding", juce::Colours::darkgrey, &liveCodingPanel, false);
+    tabs.addTab("Instruments", juce::Colours::darkgrey, &instrumentsPanel, false);
     startStopButton.onClick = [this] {
         if (audioShell.state() == fishpond::AudioShellState::running) {
             deviceManager.closeAudioDevice();
@@ -148,97 +136,70 @@ MainComponent::MainComponent()
     setSize(1040, 700);
 }
 
-void MainComponent::loadBassBundle(const juce::File& bundle)
+void MainComponent::chooseInstrument(std::size_t slotIndex)
 {
-        if (audioShell.state() == fishpond::AudioShellState::running) {
-            mixerPlaceholder.setText("Stop audio before loading Instrument 01", juce::dontSendNotification);
-            return;
-        }
-        bassEditorWindow.reset();
-        bass = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
-        std::string diagnostic;
-        const auto prepared = bass->prepareBundle(bundle, diagnostic);
-        const auto committed = prepared && bass->commitAtBlockBoundary(diagnostic);
-        mixerPlaceholder.setText(committed ? "Instrument 01 ready: " + bundle.getFileName() : diagnostic,
-                                 juce::dontSendNotification);
+    auto& slot = instrumentSlots[slotIndex];
+    const auto name = instrumentName(slotIndex);
+    slot.chooser = std::make_unique<juce::FileChooser>("Select " + name + " VST3", defaultVst3Folder(), "*.vst3");
+    slot.chooser->launchAsync(juce::FileBrowserComponent::openMode
+                                  | juce::FileBrowserComponent::canSelectFiles
+                                  | juce::FileBrowserComponent::canSelectDirectories,
+        [this, slotIndex] (const juce::FileChooser& chooser) {
+            const auto bundle = chooser.getResult();
+            instrumentSlots[slotIndex].chooser.reset();
+            if (bundle != juce::File())
+                loadInstrumentBundle(slotIndex, bundle);
+        });
 }
 
-void MainComponent::loadLeadBundle(const juce::File& bundle)
+void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle)
 {
+    const auto name = instrumentName(slotIndex);
     if (audioShell.state() == fishpond::AudioShellState::running) {
-        mixerPlaceholder.setText("Stop audio before loading Instrument 02", juce::dontSendNotification);
+        instrumentsPanel.setText("Stop audio before loading " + name, juce::dontSendNotification);
         return;
     }
-    leadEditorWindow.reset();
-    lead = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
+    auto& slot = instrumentSlots[slotIndex];
+    slot.editorWindow.reset();
+    slot.instrument = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
     std::string diagnostic;
-    const auto prepared = lead->prepareBundle(bundle, diagnostic);
-    const auto committed = prepared && lead->commitAtBlockBoundary(diagnostic);
-    mixerPlaceholder.setText(committed ? "Instrument 02 ready: " + bundle.getFileName() : diagnostic,
-                             juce::dontSendNotification);
+    const auto prepared = slot.instrument->prepareBundle(bundle, diagnostic);
+    const auto committed = prepared && slot.instrument->commitAtBlockBoundary(diagnostic);
+    instrumentsPanel.setText(committed ? name + " ready: " + bundle.getFileName() : diagnostic, juce::dontSendNotification);
 }
 
-void MainComponent::openBassEditor()
+void MainComponent::openInstrumentEditor(std::size_t slotIndex)
 {
-    if (bassEditorWindow != nullptr) {
-        bassEditorWindow->setVisible(true);
-        bassEditorWindow->toFront(true);
+    auto& slot = instrumentSlots[slotIndex];
+    if (slot.editorWindow != nullptr) {
+        slot.editorWindow->setVisible(true);
+        slot.editorWindow->toFront(true);
         return;
     }
-    auto* processor = bass != nullptr ? bass->activeProcessorForEditor() : nullptr;
-    if (processor == nullptr || bass->state() != fishpond::SingleChannelState::ready) {
-        mixerPlaceholder.setText("Load Instrument 01 before opening its UI", juce::dontSendNotification);
+    auto* processor = slot.instrument != nullptr ? slot.instrument->activeProcessorForEditor() : nullptr;
+    const auto name = instrumentName(slotIndex);
+    if (processor == nullptr || slot.instrument->state() != fishpond::SingleChannelState::ready) {
+        instrumentsPanel.setText("Load " + name + " before opening its UI", juce::dontSendNotification);
         return;
     }
     if (! processor->hasEditor()) {
-        mixerPlaceholder.setText("This VST3 does not provide a plugin UI", juce::dontSendNotification);
+        instrumentsPanel.setText("This VST3 does not provide a plugin UI", juce::dontSendNotification);
         return;
     }
-    bassEditorWindow = std::make_unique<PluginEditorWindow>(*processor);
-    bassEditorWindow->setVisible(true);
-    bassEditorWindow->toFront(true);
+    slot.editorWindow = std::make_unique<PluginEditorWindow>(*processor);
+    slot.editorWindow->setVisible(true);
+    slot.editorWindow->toFront(true);
 }
 
-void MainComponent::openLeadEditor()
+void MainComponent::renameInstrumentChannel(std::size_t slotIndex)
 {
-    if (leadEditorWindow != nullptr) {
-        leadEditorWindow->setVisible(true);
-        leadEditorWindow->toFront(true);
+    auto& slot = instrumentSlots[slotIndex];
+    if (! channels.rename(slot.channelId, slot.channelName.getText().toStdString())) {
+        instrumentsPanel.setText("FP_CHANNEL_NAME_INVALID: choose a unique non-empty name", juce::dontSendNotification);
         return;
     }
-    auto* processor = lead != nullptr ? lead->activeProcessorForEditor() : nullptr;
-    if (processor == nullptr || lead->state() != fishpond::SingleChannelState::ready) {
-        mixerPlaceholder.setText("Load Instrument 02 before opening its UI", juce::dontSendNotification);
-        return;
-    }
-    if (! processor->hasEditor()) {
-        mixerPlaceholder.setText("This VST3 does not provide a plugin UI", juce::dontSendNotification);
-        return;
-    }
-    leadEditorWindow = std::make_unique<PluginEditorWindow>(*processor);
-    leadEditorWindow->setVisible(true);
-    leadEditorWindow->toFront(true);
-}
-
-void MainComponent::renameBassChannel()
-{
-    if (! channels.rename(bassChannelId, bassChannelName.getText().toStdString())) {
-        mixerPlaceholder.setText("FP_CHANNEL_NAME_INVALID: choose a unique non-empty name", juce::dontSendNotification);
-        return;
-    }
-    const auto channel = channels.resolve(bassChannelName.getText().toStdString());
-    mixerPlaceholder.setText("Channel renamed: " + bassChannelName.getText() + " (target=\"" + juce::String(channel->alias) + "\")",
-                             juce::dontSendNotification);
-}
-
-void MainComponent::renameLeadChannel()
-{
-    if (! channels.rename(leadChannelId, leadChannelName.getText().toStdString())) {
-        mixerPlaceholder.setText("FP_CHANNEL_NAME_INVALID: choose a unique non-empty name", juce::dontSendNotification);
-        return;
-    }
-    const auto channel = channels.resolve(leadChannelName.getText().toStdString());
-    mixerPlaceholder.setText("Channel renamed: " + leadChannelName.getText() + " (target=\""
+    const auto channel = channels.resolve(slot.channelName.getText().toStdString());
+    instrumentsPanel.setText("Channel renamed: " + slot.channelName.getText() + " (target=\""
                                  + juce::String(channel->alias) + "\")", juce::dontSendNotification);
 }
 
@@ -290,72 +251,66 @@ void MainComponent::timerCallback()
                                 juce::dontSendNotification);
             continue;
         }
-        if (completion.source.find(">> n(") != std::string::npos) {
-            std::vector<std::uint64_t> readyChannelIds;
-            if (bass != nullptr && bass->state() == fishpond::SingleChannelState::ready)
-                readyChannelIds.push_back(bassChannelId);
-            if (lead != nullptr && lead->state() == fishpond::SingleChannelState::ready)
-                readyChannelIds.push_back(leadChannelId);
-            std::vector<PendingBassPattern> patterns;
-            juce::StringArray lines;
-            lines.addLines(juce::String(completion.source));
-
-            for (const auto& line : lines) {
-                const auto patternSource = line.toStdString();
-                if (patternSource.find(">> n(") == std::string::npos)
-                    continue;
-
-                const auto validation = runtime.evaluateEditorText(patternSource, channels, readyChannelIds);
-                if (! validation.accepted) {
-                    diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
-                    patterns.clear();
-                    break;
-                }
-                const auto targetMarker = patternSource.find("target=");
-                const auto targetQuote = patternSource.find('"', targetMarker);
-                const auto targetEnd = patternSource.find('"', targetQuote + 1);
-                const auto channel = channels.resolve(patternSource.substr(targetQuote + 1, targetEnd - targetQuote - 1));
-
-                const auto noteSteps = runtime.noteStepsFromEditorText(patternSource);
-                const auto playerIndex = runtime.playerIndexFromEditorText(patternSource);
-                const auto periodBeats = runtime.periodBeatsFromEditorText(patternSource);
-                const auto durationBeats = runtime.durationBeatsFromEditorText(patternSource);
-                const auto velocity = runtime.velocityFromEditorText(patternSource);
-                if (! playerIndex || ! periodBeats || ! durationBeats || ! velocity) {
-                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: player, p, dur, and velocity must be valid", juce::dontSendNotification);
-                    patterns.clear();
-                    break;
-                }
-                if (! channel) {
-                    diagnostics.setText("FP_TARGET_UNAVAILABLE: target has no ready instrument channel", juce::dontSendNotification);
-                    patterns.clear();
-                    break;
-                }
-                if (noteSteps.empty()) {
-                    diagnostics.setText("FP_PATTERN_VALUE_INVALID: notes must use C3 or {C3 E3 G3} chord groups", juce::dontSendNotification);
-                    patterns.clear();
-                    break;
-                }
-                patterns.push_back({ *playerIndex, channel->id, noteSteps, *periodBeats, *durationBeats, *velocity });
-            }
-
-            if (patterns.empty())
-                continue;
-
-            std::vector<fishpond::AsyncBassScheduler<8192>::Pattern> scheduledPatterns;
-            scheduledPatterns.reserve(patterns.size());
-            for (auto& pattern : patterns)
-                scheduledPatterns.push_back({ pattern.playerIndex, pattern.channelId, std::move(pattern.noteSteps), pattern.periodBeats,
-                                              static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats });
-            bassScheduler.replaceAll(std::move(scheduledPatterns));
-
-            diagnostics.setText("Queued " + juce::String(static_cast<int>(patterns.size()))
-                                    + (patterns.size() == 1 ? " instrument pattern for the next bar"
-                                                            : " instrument patterns for the next bar"),
-                                juce::dontSendNotification);
-        } else {
+        if (completion.source.find(">> n(") == std::string::npos) {
             diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
+            continue;
         }
+
+        std::vector<std::uint64_t> readyChannelIds;
+        for (const auto& slot : instrumentSlots)
+            if (slot.instrument != nullptr && slot.instrument->state() == fishpond::SingleChannelState::ready)
+                readyChannelIds.push_back(slot.channelId);
+        std::vector<PendingInstrumentPattern> patterns;
+        juce::StringArray lines;
+        lines.addLines(juce::String(completion.source));
+        for (const auto& line : lines) {
+            const auto patternSource = line.toStdString();
+            if (patternSource.find(">> n(") == std::string::npos)
+                continue;
+            const auto validation = runtime.evaluateEditorText(patternSource, channels, readyChannelIds);
+            if (! validation.accepted) {
+                diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
+                patterns.clear();
+                break;
+            }
+            const auto targetMarker = patternSource.find("target=");
+            const auto targetQuote = patternSource.find('"', targetMarker);
+            const auto targetEnd = patternSource.find('"', targetQuote + 1);
+            const auto channel = channels.resolve(patternSource.substr(targetQuote + 1, targetEnd - targetQuote - 1));
+            const auto noteSteps = runtime.noteStepsFromEditorText(patternSource);
+            const auto playerIndex = runtime.playerIndexFromEditorText(patternSource);
+            const auto periodBeats = runtime.periodBeatsFromEditorText(patternSource);
+            const auto durationBeats = runtime.durationBeatsFromEditorText(patternSource);
+            const auto velocity = runtime.velocityFromEditorText(patternSource);
+            if (! playerIndex || ! periodBeats || ! durationBeats || ! velocity) {
+                diagnostics.setText("FP_PATTERN_VALUE_INVALID: player, p, dur, and velocity must be valid", juce::dontSendNotification);
+                patterns.clear();
+                break;
+            }
+            if (! channel) {
+                diagnostics.setText("FP_TARGET_UNAVAILABLE: target has no ready instrument channel", juce::dontSendNotification);
+                patterns.clear();
+                break;
+            }
+            if (noteSteps.empty()) {
+                diagnostics.setText("FP_PATTERN_VALUE_INVALID: notes must use C3 or {C3 E3 G3} chord groups", juce::dontSendNotification);
+                patterns.clear();
+                break;
+            }
+            patterns.push_back({ *playerIndex, channel->id, noteSteps, *periodBeats, *durationBeats, *velocity });
+        }
+        if (patterns.empty())
+            continue;
+        std::vector<fishpond::AsyncBassScheduler<8192>::Pattern> scheduledPatterns;
+        scheduledPatterns.reserve(patterns.size());
+        for (auto& pattern : patterns)
+            scheduledPatterns.push_back({ pattern.playerIndex, pattern.channelId, std::move(pattern.noteSteps), pattern.periodBeats,
+                                          static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats });
+        bassScheduler.replaceAll(std::move(scheduledPatterns));
+        diagnostics.setText("Queued " + juce::String(static_cast<int>(patterns.size()))
+                                + (patterns.size() == 1 ? " instrument pattern for the next bar"
+                                                        : " instrument patterns for the next bar"),
+                            juce::dontSendNotification);
     }
 }
 
@@ -373,12 +328,10 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origi
 {
     if (origin != &liveCodingEditor || ! key.isKeyCode(juce::KeyPress::returnKey))
         return false;
-
     const auto shiftDown = key.getModifiers().isShiftDown()
                         || juce::ModifierKeys::getCurrentModifiers().isShiftDown();
     if (! shiftDown)
         return false;
-
     const auto selectedText = liveCodingEditor.getHighlightedText();
     executeEditorText(selectedText.isNotEmpty() ? selectedText : currentLine());
     return true;
@@ -396,30 +349,25 @@ void MainComponent::resized()
     auto liveArea = liveCodingPanel.getLocalBounds().reduced(8);
     diagnostics.setBounds(liveArea.removeFromBottom(84));
     liveCodingEditor.setBounds(liveArea);
-    auto mixerArea = mixerPlaceholder.getLocalBounds().reduced(8);
-    auto mixerActions = mixerArea.removeFromTop(32);
-    chooseBassButton.setBounds(mixerActions.removeFromLeft(140));
-    openBassEditorButton.setBounds(mixerActions.removeFromLeft(130));
-    bassChannelName.setBounds(mixerActions.removeFromLeft(160));
-    renameBassButton.setBounds(mixerActions.removeFromLeft(80));
-    mixerActions = mixerArea.removeFromTop(32);
-    chooseLeadButton.setBounds(mixerActions.removeFromLeft(140));
-    openLeadEditorButton.setBounds(mixerActions.removeFromLeft(130));
-    leadChannelName.setBounds(mixerActions.removeFromLeft(160));
-    renameLeadButton.setBounds(mixerActions.removeFromLeft(80));
+    auto instrumentArea = instrumentsPanel.getLocalBounds().reduced(8);
+    for (auto& slot : instrumentSlots) {
+        auto actions = instrumentArea.removeFromTop(32);
+        slot.chooseButton.setBounds(actions.removeFromLeft(160));
+        slot.openEditorButton.setBounds(actions.removeFromLeft(145));
+        slot.channelName.setBounds(actions.removeFromLeft(180));
+        slot.renameButton.setBounds(actions.removeFromLeft(80));
+    }
 }
 
 void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
 {
     if (device == nullptr)
         return;
-
     const auto outputChannels = device->getActiveOutputChannels().countNumberOfSetBits();
     if (! audioShell.selectDevice(device->getName().toStdString(), outputChannels)) {
         deviceStatus.setText("Audio-device initialization failed: stereo output is required", juce::dontSendNotification);
         return;
     }
-
     audioShell.start();
     activeSampleRate.store(device->getCurrentSampleRate(), std::memory_order_release);
     activeBlockSize.store(static_cast<std::uint32_t>(device->getCurrentBufferSizeSamples()), std::memory_order_release);
@@ -453,34 +401,38 @@ void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, f
     const auto start = renderFrame.load();
     noteDispatcher.drain(noteQueue, start, static_cast<std::uint32_t>(samples), observedPanic,
         [this] (const fishpond::NoteEvent& event, std::uint32_t offset) {
+            const auto addAllNotesOff = [offset] (juce::MidiBuffer& midi, std::uint8_t midiChannel) {
+                midi.addEvent(juce::MidiMessage::allNotesOff(midiChannel), static_cast<int>(offset));
+                midi.addEvent(juce::MidiMessage::allSoundOff(midiChannel), static_cast<int>(offset));
+            };
             if (event.type == fishpond::NoteEventType::allNotesOff && event.channelId == 0) {
-                for (auto& midi : channelMidi) {
-                    midi.addEvent(juce::MidiMessage::allNotesOff(event.midiChannel), static_cast<int>(offset));
-                    midi.addEvent(juce::MidiMessage::allSoundOff(event.midiChannel), static_cast<int>(offset));
+                for (auto& midi : channelMidi)
+                    addAllNotesOff(midi, event.midiChannel);
+                return;
+            }
+            std::size_t slotIndex = instrumentSlots.size();
+            for (std::size_t index = 0; index < instrumentSlots.size(); ++index)
+                if (instrumentSlots[index].channelId == event.channelId) {
+                    slotIndex = index;
+                    break;
                 }
+            if (slotIndex == instrumentSlots.size())
                 return;
-            }
-            auto* midi = event.channelId == bassChannelId ? &channelMidi[0]
-                       : event.channelId == leadChannelId ? &channelMidi[1] : nullptr;
-            if (midi == nullptr)
-                return;
+            auto& midi = channelMidi[slotIndex];
             if (event.type == fishpond::NoteEventType::noteOn)
-                midi->addEvent(juce::MidiMessage::noteOn(event.midiChannel, event.midiNote,
-                                                             event.velocity / 127.0f), static_cast<int>(offset));
+                midi.addEvent(juce::MidiMessage::noteOn(event.midiChannel, event.midiNote,
+                                                        event.velocity / 127.0f), static_cast<int>(offset));
             else if (event.type == fishpond::NoteEventType::noteOff)
-                midi->addEvent(juce::MidiMessage::noteOff(event.midiChannel, event.midiNote), static_cast<int>(offset));
-            else if (event.type == fishpond::NoteEventType::allNotesOff) {
-                midi->addEvent(juce::MidiMessage::allNotesOff(event.midiChannel), static_cast<int>(offset));
-                midi->addEvent(juce::MidiMessage::allSoundOff(event.midiChannel), static_cast<int>(offset));
-            }
+                midi.addEvent(juce::MidiMessage::noteOff(event.midiChannel, event.midiNote), static_cast<int>(offset));
+            else if (event.type == fishpond::NoteEventType::allNotesOff)
+                addAllNotesOff(midi, event.midiChannel);
         });
     audio.clear();
-    const std::array<fishpond::HostedInstrument*, 2> instruments { bass.get(), lead.get() };
-    for (std::size_t index = 0; index < instruments.size(); ++index) {
+    for (std::size_t index = 0; index < instrumentSlots.size(); ++index) {
         auto& instrumentAudio = channelAudio[index];
         instrumentAudio.clear();
-        if (instruments[index] != nullptr)
-            instruments[index]->process(instrumentAudio, channelMidi[index]);
+        if (instrumentSlots[index].instrument != nullptr)
+            instrumentSlots[index].instrument->process(instrumentAudio, channelMidi[index]);
         for (int channel = 0; channel < outputChannels; ++channel)
             audio.addFrom(channel, 0, instrumentAudio, channel, 0, samples);
     }
