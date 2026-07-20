@@ -99,7 +99,9 @@ LiveCodingEditor::LiveCodingEditor(juce::CodeDocument& document, juce::CodeToken
     setColourScheme(tokeniser.getDefaultColourScheme());
     setColour(juce::CodeEditorComponent::backgroundColourId, juce::Colour(0xff26343a));
     setColour(juce::CodeEditorComponent::defaultTextColourId, juce::Colour(0xfff1f1f1));
-    setColour(juce::CodeEditorComponent::highlightColourId, juce::Colour(0xffffad42));
+    // Normal text selection must remain readable for editing and copying. Execution
+    // feedback is painted separately as a short translucent overlay below.
+    setColour(juce::CodeEditorComponent::highlightColourId, juce::Colour(0xff356f8c));
     setColour(juce::CodeEditorComponent::lineNumberBackgroundId, juce::Colour(0xff1b2529));
     setColour(juce::CodeEditorComponent::lineNumberTextId, juce::Colour(0xff7d8799));
     setLineNumbersShown(true);
@@ -111,13 +113,31 @@ void LiveCodingEditor::flashRange(juce::Range<int> range)
     if (range.isEmpty())
         return;
 
-    caretToRestore = getCaretPosition();
-    selectRegion({ getDocument(), range.getStart() }, { getDocument(), range.getEnd() });
+    flashingRange = range;
+    repaint();
     startTimer(200);
+}
+
+void LiveCodingEditor::paintOverChildren(juce::Graphics& graphics)
+{
+    if (flashingRange.isEmpty())
+        return;
+
+    const auto& document = getDocument();
+    const auto firstLine = juce::CodeDocument::Position(document, flashingRange.getStart()).getLineNumber();
+    const auto lastCharacter = juce::jmax(flashingRange.getStart(), flashingRange.getEnd() - 1);
+    const auto lastLine = juce::CodeDocument::Position(document, lastCharacter).getLineNumber();
+
+    graphics.setColour(juce::Colour(0x33ffad42));
+    for (auto line = firstLine; line <= lastLine; ++line) {
+        const auto lineStart = getCharacterBounds({ document, line, 0 });
+        graphics.fillRect(lineStart.getX(), lineStart.getY(), getWidth() - lineStart.getX(), getLineHeight());
+    }
 }
 
 void LiveCodingEditor::timerCallback()
 {
     stopTimer();
-    moveCaretTo({ getDocument(), caretToRestore }, false);
+    flashingRange = {};
+    repaint();
 }

@@ -30,7 +30,8 @@ public:
     void flashRange(juce::Range<int> range);
 
 private:
+    void paintOverChildren(juce::Graphics& graphics) override;
     void timerCallback() override;
 
-    int caretToRestore {};
+    juce::Range<int> flashingRange;
 };
