@@ -149,5 +149,11 @@ A ready instrument channel is required before notes can be heard. Use the
 **Instruments** tab to load a VST3 into one of the four slots, then route with
 `target="instrument_01"` through `target="instrument_04"`.
 
+VST3 preparation runs away from the audio callback. You may replace an
+instrument while audio is running: the previous instrument continues playing
+during loading, then Fishpond adopts the fully prepared replacement at the next
+audio-block boundary. The slot's load and plugin-UI buttons are unavailable
+until that handoff completes.
+
 On macOS, build the real VST3 fixture with `cmake --preset juce-fixture-macos`
 then `cmake --build --preset juce-fixture-macos --target FishpondFixtureInstrument_VST3`.

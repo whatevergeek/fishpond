@@ -25,16 +25,18 @@ int main()
     fishpond::PreparedGraphCommand<juce::AudioProcessor> command;
     const auto taken = handoff.tryTake(command);
     juce::AudioProcessor* retired = nullptr;
-    const auto adopted = host.applyRawPreparedAtBlockBoundary(command.graph, command.configurationVersion,
-                                                               retired, diagnostic);
+    const auto adopted = host.applyRawPreparedAtBlockBoundaryNoDiagnostic(command.graph,
+                                                                           command.configurationVersion,
+                                                                           retired);
     const auto retiredNothing = handoff.retireFromAudio(retired);
 
-    host.reconfigure({ 48'000.0, 64, 2 });
+    host.reconfigureForDevice({ 48'000.0, 64, 2 });
     const auto replacementPrepared = host.prepareInstrument(std::make_unique<FixtureInstrument>(), diagnostic);
     const auto replacementQueued = handoff.submit({ host.releasePrepared(), 1, 2 });
     const auto replacementTaken = handoff.tryTake(command);
-    const auto staleRejected = ! host.applyRawPreparedAtBlockBoundary(command.graph, command.configurationVersion,
-                                                                        retired, diagnostic);
+    const auto staleRejected = ! host.applyRawPreparedAtBlockBoundaryNoDiagnostic(command.graph,
+                                                                                    command.configurationVersion,
+                                                                                    retired);
     const auto staleRetired = handoff.retireFromAudio(command.graph);
     auto workerOwner = handoff.reclaimOnWorker();
 

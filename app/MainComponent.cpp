@@ -83,6 +83,7 @@ MainComponent::MainComponent()
         const auto channel = channels.add(name.toStdString());
         jassert(channel.has_value());
         slot.channelId = channel->id;
+        slot.instrument = std::make_unique<fishpond::HostedInstrument>(currentAudioConfiguration());
         slot.chooseButton.setButtonText("Load Inst " + juce::String(static_cast<int>(slotIndex + 1)).paddedLeft('0', 2) + " VST3...");
         slot.openEditorButton.setButtonText("Open Inst " + juce::String(static_cast<int>(slotIndex + 1)).paddedLeft('0', 2) + " UI");
         slot.channelName.setText(name, juce::dontSendNotification);
@@ -154,17 +155,104 @@ void MainComponent::chooseInstrument(std::size_t slotIndex)
 void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle)
 {
     const auto name = instrumentName(slotIndex);
-    if (audioShell.state() == fishpond::AudioShellState::running) {
-        instrumentsPanel.setText("Stop audio before loading " + name, juce::dontSendNotification);
+    auto& slot = instrumentSlots[slotIndex];
+    if (slot.loading.exchange(true, std::memory_order_acq_rel)) {
+        instrumentsPanel.setText(name + " is already loading", juce::dontSendNotification);
         return;
     }
-    auto& slot = instrumentSlots[slotIndex];
+
+    if (slot.loadThread.joinable())
+        slot.loadThread.join();
+
     slot.editorWindow.reset();
-    slot.instrument = std::make_unique<fishpond::HostedInstrument>(fishpond::AudioConfiguration { 48'000.0, 512, 1 });
-    std::string diagnostic;
-    const auto prepared = slot.instrument->prepareBundle(bundle, diagnostic);
-    const auto committed = prepared && slot.instrument->commitAtBlockBoundary(diagnostic);
-    instrumentsPanel.setText(committed ? name + " ready: " + bundle.getFileName() : diagnostic, juce::dontSendNotification);
+    slot.chooseButton.setEnabled(false);
+    slot.openEditorButton.setEnabled(false);
+    const auto configuration = currentAudioConfiguration();
+    const auto loadId = slot.submittedLoadId.fetch_add(1, std::memory_order_acq_rel) + 1;
+    const auto bundleName = bundle.getFileName();
+    const juce::Component::SafePointer<MainComponent> safeThis(this);
+
+    instrumentsPanel.setText(name + " loading: " + bundleName, juce::dontSendNotification);
+    slot.loadThread = std::thread([this, slotIndex, bundle, configuration, loadId, bundleName, safeThis] {
+        fishpond::HostedInstrument preparedInstrument(configuration);
+        std::string preparationDiagnostic;
+        auto submitted = preparedInstrument.prepareBundle(bundle, preparationDiagnostic);
+        if (submitted) {
+            auto* processor = preparedInstrument.releasePrepared();
+            submitted = instrumentSlots[slotIndex].handoff.submit({ processor, configuration.version, loadId });
+            if (! submitted) {
+                delete processor;
+                preparationDiagnostic = "FP_GRAPH_QUEUE_FULL: instrument replacement queue is full";
+            }
+        }
+
+        juce::MessageManager::callAsync([safeThis, slotIndex, loadId, bundleName, submitted,
+                                         diagnostic = juce::String(preparationDiagnostic)] {
+            if (safeThis != nullptr)
+                safeThis->finishInstrumentLoad(slotIndex, loadId, bundleName, submitted, diagnostic);
+        });
+    });
+}
+
+void MainComponent::finishInstrumentLoad(std::size_t slotIndex, std::uint64_t loadId,
+                                         const juce::String& bundleName, bool submitted,
+                                         const juce::String& diagnostic)
+{
+    auto& slot = instrumentSlots[slotIndex];
+    if (slot.loadThread.joinable())
+        slot.loadThread.join();
+    slot.loading.store(false, std::memory_order_release);
+    slot.chooseButton.setEnabled(true);
+
+    const auto name = instrumentName(slotIndex);
+    if (! submitted) {
+        slot.openEditorButton.setEnabled(slot.instrument->state() == fishpond::SingleChannelState::ready);
+        instrumentsPanel.setText(diagnostic, juce::dontSendNotification);
+        return;
+    }
+
+    slot.pendingBundleName = bundleName;
+    if (audioShell.state() != fishpond::AudioShellState::running)
+        commitPendingInstrumentWhileStopped(slotIndex);
+
+    if (slot.committedLoadId.load(std::memory_order_acquire) == loadId) {
+        slot.pendingBundleName.clear();
+        slot.openEditorButton.setEnabled(true);
+        instrumentsPanel.setText(name + " ready: " + bundleName, juce::dontSendNotification);
+    } else {
+        instrumentsPanel.setText(name + " prepared: swaps at the next audio block", juce::dontSendNotification);
+    }
+}
+
+void MainComponent::commitPendingInstrumentWhileStopped(std::size_t slotIndex)
+{
+    auto& slot = instrumentSlots[slotIndex];
+    fishpond::PreparedGraphCommand<juce::AudioProcessor> command;
+    while (slot.handoff.tryTake(command)) {
+        juce::AudioProcessor* retired = nullptr;
+        std::string diagnostic;
+        if (slot.instrument->applyRawPreparedAtBlockBoundary(command.graph, command.configurationVersion,
+                                                              retired, diagnostic)) {
+            std::unique_ptr<juce::AudioProcessor> retiredOwner(retired);
+            slot.committedLoadId.store(command.commandId, std::memory_order_release);
+        } else {
+            std::unique_ptr<juce::AudioProcessor> rejectedOwner(command.graph);
+            slot.rejectedLoadId.store(command.commandId, std::memory_order_release);
+        }
+    }
+}
+
+fishpond::AudioConfiguration MainComponent::currentAudioConfiguration() const noexcept
+{
+    for (;;) {
+        const auto before = audioConfigurationVersion.load(std::memory_order_acquire);
+        if ((before & 1U) != 0)
+            continue;
+        const auto sampleRate = activeSampleRate.load(std::memory_order_acquire);
+        const auto blockSize = activeBlockSize.load(std::memory_order_acquire);
+        if (before == audioConfigurationVersion.load(std::memory_order_acquire))
+            return { sampleRate, static_cast<int>(blockSize), before };
+    }
 }
 
 void MainComponent::openInstrumentEditor(std::size_t slotIndex)
@@ -318,6 +406,13 @@ MainComponent::~MainComponent()
     liveCodingEditor.removeKeyListener(this);
     deviceManager.removeAudioCallback(this);
     deviceManager.closeAudioDevice();
+    for (std::size_t slotIndex = 0; slotIndex < instrumentSlots.size(); ++slotIndex) {
+        auto& slot = instrumentSlots[slotIndex];
+        if (slot.loadThread.joinable())
+            slot.loadThread.join();
+        commitPendingInstrumentWhileStopped(slotIndex);
+        while (slot.handoff.reclaimOnWorker() != nullptr) {}
+    }
 }
 
 void MainComponent::executeEditorText(const juce::String& source)
@@ -335,6 +430,29 @@ void MainComponent::executeEditorText(const juce::String& source)
 
 void MainComponent::timerCallback()
 {
+    for (std::size_t slotIndex = 0; slotIndex < instrumentSlots.size(); ++slotIndex) {
+        auto& slot = instrumentSlots[slotIndex];
+        while (slot.handoff.reclaimOnWorker() != nullptr) {}
+
+        if (audioShell.state() != fishpond::AudioShellState::running)
+            commitPendingInstrumentWhileStopped(slotIndex);
+
+        if (slot.pendingBundleName.isEmpty())
+            continue;
+
+        const auto loadId = slot.submittedLoadId.load(std::memory_order_acquire);
+        const auto name = instrumentName(slotIndex);
+        if (slot.committedLoadId.load(std::memory_order_acquire) >= loadId) {
+            instrumentsPanel.setText(name + " ready: " + slot.pendingBundleName, juce::dontSendNotification);
+            slot.pendingBundleName.clear();
+            slot.openEditorButton.setEnabled(true);
+        } else if (slot.rejectedLoadId.load(std::memory_order_acquire) >= loadId) {
+            instrumentsPanel.setText("FP_GRAPH_STALE: retry loading " + name, juce::dontSendNotification);
+            slot.pendingBundleName.clear();
+            slot.openEditorButton.setEnabled(slot.instrument->state() == fishpond::SingleChannelState::ready);
+        }
+    }
+
     fishpond::PythonExecutionCompletion completion;
     while (pythonWorker.tryTakeCompletion(completion)) {
         if (! completion.result.accepted) {
@@ -530,8 +648,14 @@ void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
         return;
     }
     audioShell.start();
+    audioConfigurationVersion.fetch_add(1, std::memory_order_acq_rel);
     activeSampleRate.store(device->getCurrentSampleRate(), std::memory_order_release);
     activeBlockSize.store(static_cast<std::uint32_t>(device->getCurrentBufferSizeSamples()), std::memory_order_release);
+    const auto configurationVersion = audioConfigurationVersion.fetch_add(1, std::memory_order_acq_rel) + 1;
+    const fishpond::AudioConfiguration configuration { device->getCurrentSampleRate(),
+                                                        device->getCurrentBufferSizeSamples(), configurationVersion };
+    for (auto& slot : instrumentSlots)
+        slot.instrument->reconfigureForDevice(configuration);
     for (auto& buffer : channelAudio)
         buffer.setSize(outputChannels, device->getCurrentBufferSizeSamples(), false, false, true);
     updateSchedulerTiming();
@@ -557,6 +681,23 @@ void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, f
                                                       const juce::AudioIODeviceCallbackContext&)
 {
     juce::AudioBuffer<float> audio(output, outputChannels, samples);
+    for (auto& slot : instrumentSlots) {
+        fishpond::PreparedGraphCommand<juce::AudioProcessor> command;
+        while (slot.handoff.tryTake(command)) {
+            juce::AudioProcessor* retired = nullptr;
+            const auto committed = slot.instrument->applyRawPreparedAtBlockBoundaryNoDiagnostic(
+                command.graph, command.configurationVersion, retired);
+            auto* graphToRetire = committed ? retired : command.graph;
+            // A slot accepts one replacement at a time, while the non-audio timer drains
+            // retired graphs. Never destroy a plug-in instance from this callback.
+            if (slot.handoff.retireFromAudio(graphToRetire)) {
+                if (committed)
+                    slot.committedLoadId.store(command.commandId, std::memory_order_release);
+                else
+                    slot.rejectedLoadId.store(command.commandId, std::memory_order_release);
+            }
+        }
+    }
     for (auto& midi : channelMidi)
         midi.clear();
     const auto start = renderFrame.load();

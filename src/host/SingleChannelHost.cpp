@@ -58,11 +58,35 @@ bool SingleChannelHost::applyRawPreparedAtBlockBoundary(juce::AudioProcessor* pr
         return false;
     }
 
+    const auto committed = applyRawPreparedAtBlockBoundaryNoDiagnostic(processor, preparedConfigurationVersion, retired);
+    if (committed)
+        diagnostic.clear();
+    return committed;
+}
+
+bool SingleChannelHost::applyRawPreparedAtBlockBoundaryNoDiagnostic(juce::AudioProcessor* processor,
+                                                                     std::uint64_t preparedConfigurationVersion,
+                                                                     juce::AudioProcessor*& retired) noexcept
+{
+    retired = nullptr;
+    if (processor == nullptr || preparedConfigurationVersion != audioConfiguration.version)
+        return false;
+
     retired = active.release();
     active.reset(processor);
     channelState = SingleChannelState::ready;
-    diagnostic.clear();
     return true;
+}
+
+void SingleChannelHost::reconfigureForDevice(AudioConfiguration configuration)
+{
+    audioConfiguration = configuration;
+    if (active == nullptr)
+        return;
+
+    active->releaseResources();
+    active->setPlayConfigDetails(0, 2, audioConfiguration.sampleRate, audioConfiguration.blockSize);
+    active->prepareToPlay(audioConfiguration.sampleRate, audioConfiguration.blockSize);
 }
 
 void SingleChannelHost::process(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi)

@@ -10,6 +10,21 @@ public:
 
     bool prepareBundle(const juce::File& bundle, std::string& diagnostic);
     bool commitAtBlockBoundary(std::string& diagnostic);
+    juce::AudioProcessor* releasePrepared() noexcept { return host.releasePrepared(); }
+    bool applyRawPreparedAtBlockBoundary(juce::AudioProcessor* processor,
+                                         std::uint64_t preparedConfigurationVersion,
+                                         juce::AudioProcessor*& retired,
+                                         std::string& diagnostic) noexcept
+    {
+        return host.applyRawPreparedAtBlockBoundary(processor, preparedConfigurationVersion, retired, diagnostic);
+    }
+    bool applyRawPreparedAtBlockBoundaryNoDiagnostic(juce::AudioProcessor* processor,
+                                                     std::uint64_t preparedConfigurationVersion,
+                                                     juce::AudioProcessor*& retired) noexcept
+    {
+        return host.applyRawPreparedAtBlockBoundaryNoDiagnostic(processor, preparedConfigurationVersion, retired);
+    }
+    void reconfigureForDevice(AudioConfiguration configuration) { host.reconfigureForDevice(configuration); }
     void process(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi) { host.process(audio, midi); }
     SingleChannelState state() const noexcept { return host.state(); }
     juce::AudioProcessor* activeProcessorForEditor() const noexcept { return host.activeProcessorForEditor(); }

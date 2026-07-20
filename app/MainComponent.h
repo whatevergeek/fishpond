@@ -3,6 +3,7 @@
 #include "AudioShell.h"
 #include "LiveCodingEditor.h"
 #include "host/ControlledVST3Bass.h"
+#include "host/PreparedGraphHandoff.h"
 #include "mixer/ChannelRegistry.h"
 #include "runtime/AsyncBassScheduler.h"
 #include "runtime/AudioEventDispatcher.h"
@@ -15,6 +16,7 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <thread>
 #include <vector>
 
 class MainComponent final : public juce::Component,
@@ -36,7 +38,14 @@ private:
 
     struct InstrumentSlot {
         std::unique_ptr<fishpond::HostedInstrument> instrument;
+        fishpond::PreparedGraphHandoff<juce::AudioProcessor, 4> handoff;
         std::uint64_t channelId {};
+        std::thread loadThread;
+        std::atomic<bool> loading {};
+        std::atomic<std::uint64_t> submittedLoadId {};
+        std::atomic<std::uint64_t> committedLoadId {};
+        std::atomic<std::uint64_t> rejectedLoadId {};
+        juce::String pendingBundleName;
         juce::TextButton chooseButton;
         juce::TextButton openEditorButton;
         juce::TextEditor channelName;
@@ -48,6 +57,11 @@ private:
     void executeEditorText(const juce::String& source);
     void chooseInstrument(std::size_t slotIndex);
     void loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle);
+    void finishInstrumentLoad(std::size_t slotIndex, std::uint64_t loadId,
+                              const juce::String& bundleName, bool submitted,
+                              const juce::String& diagnostic);
+    void commitPendingInstrumentWhileStopped(std::size_t slotIndex);
+    fishpond::AudioConfiguration currentAudioConfiguration() const noexcept;
     void openInstrumentEditor(std::size_t slotIndex);
     void renameInstrumentChannel(std::size_t slotIndex);
     void loadLiveCodingFile(const juce::File& file);
@@ -72,6 +86,8 @@ private:
     fishpond::AsyncBassScheduler<8192> bassScheduler { noteQueue, renderFrame };
     std::atomic<double> activeSampleRate { 48'000.0 };
     std::atomic<std::uint32_t> activeBlockSize { 512 };
+    // Even values are stable snapshots; an odd value means device configuration is changing.
+    std::atomic<std::uint64_t> audioConfigurationVersion { 2 };
     std::uint64_t observedPanic {};
     std::array<InstrumentSlot, instrumentSlotCount> instrumentSlots;
     std::array<juce::MidiBuffer, instrumentSlotCount> channelMidi;

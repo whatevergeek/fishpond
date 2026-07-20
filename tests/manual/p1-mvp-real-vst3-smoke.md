@@ -4,8 +4,8 @@ Run this on macOS with supported instrument `.vst3` bundles that are not the
 Fishpond fixture. This is a controlled four-slot load path, not catalogue scan
 coverage.
 
-1. Launch Fishpond, open **Instruments**, and click **Load Inst 01 VST3...** while audio is
-   stopped. Select the instrument bundle and confirm the status reads
+1. Launch Fishpond, open **Instruments**, and click **Load Inst 01 VST3...**.
+   Select the instrument bundle and confirm the status reads
    `Instrument 01 VST3 ready: …`.
 2. Start audio at 48 kHz stereo. In Live Coding, execute each of these lines
    separately:
@@ -32,8 +32,8 @@ coverage.
    ```
 5. Execute `panic()` and confirm all audio stops with no sustained/stuck note.
 
-6. Stop audio. Load a supported VST3 into each of **Load Inst 01 VST3...**
-   through **Load Inst 04 VST3...**, then start audio and evaluate:
+6. Load a supported VST3 into each of **Load Inst 01 VST3...** through
+   **Load Inst 04 VST3...**, then start audio and evaluate:
 
    ```python
    Pa >> n("C2", target="instrument_01", p=1, dur=0.25)
@@ -56,5 +56,13 @@ coverage.
    Pc.stop()
    Pd.stop()
    ```
+
+7. With `Pa` playing through Instrument 01, use **Load Inst 01 VST3...** to
+   select a different supported VST3 *without stopping audio*. Confirm the
+   existing pattern remains audible while the button is disabled and the status
+   reports loading/preparing. At the next audio block after preparation, confirm
+   the new instrument takes over with no application crash or sustained note.
+   The old plugin UI is closed during replacement; use **Open Inst 01 UI** only
+   after the replacement reports ready.
 
 Record the selected plugin name and pass/fail result in the GenFlex audit.

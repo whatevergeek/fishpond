@@ -29,6 +29,11 @@ public:
                                          std::uint64_t preparedConfigurationVersion,
                                          juce::AudioProcessor*& retired,
                                          std::string& diagnostic) noexcept;
+    bool applyRawPreparedAtBlockBoundaryNoDiagnostic(juce::AudioProcessor* processor,
+                                                     std::uint64_t preparedConfigurationVersion,
+                                                     juce::AudioProcessor*& retired) noexcept;
+    // Call only while the audio device is stopped, before its callback begins.
+    void reconfigureForDevice(AudioConfiguration configuration);
     juce::AudioProcessor* releaseActiveForWorker() noexcept { return active.release(); }
     juce::AudioProcessor* activeProcessorForEditor() const noexcept { return active.get(); }
     void process(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi);
