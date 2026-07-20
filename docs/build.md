@@ -149,6 +149,10 @@ A ready instrument channel is required before notes can be heard. Use the
 **Instruments** tab to load a VST3 into one of the four slots, then route with
 `target="instrument_01"` through `target="instrument_04"`.
 
+Instrument slots negotiate stereo output first and fall back to mono when a
+plug-in only exposes a mono main output. Mono output is duplicated into the
+stereo master mix.
+
 VST3 preparation runs away from the audio callback through JUCE's asynchronous
 VST3 creation path. You may replace an instrument while audio is running: the
 previous instrument continues playing during loading, then Fishpond adopts the

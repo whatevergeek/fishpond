@@ -46,6 +46,7 @@ private:
     AudioConfiguration audioConfiguration;
     std::unique_ptr<juce::AudioProcessor> prepared;
     std::unique_ptr<juce::AudioProcessor> active;
+    int activeOutputChannels {};
     SingleChannelState channelState { SingleChannelState::empty };
 };
 

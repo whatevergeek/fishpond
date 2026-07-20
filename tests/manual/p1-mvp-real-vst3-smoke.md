@@ -6,6 +6,8 @@ coverage.
 
 Fishpond selects an instrument class from VST3 bundles that expose more than
 one class; effect-only bundles are not valid for these instrument slots.
+Mono-output instruments are supported and are duplicated into the stereo master
+mix.
 
 1. Launch Fishpond, open **Instruments**, and click **Load Inst 01 VST3...**.
    Select the instrument bundle and confirm the status reads

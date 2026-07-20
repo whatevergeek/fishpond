@@ -14,13 +14,19 @@ bool SingleChannelHost::prepareInstrument(std::unique_ptr<juce::AudioProcessor> 
         diagnostic = "FP_INSTRUMENT_LAYOUT: instrument has no main output bus";
         return false;
     }
-    layout.getChannelSet(false, 0) = juce::AudioChannelSet::stereo();
-    if (! processor->checkBusesLayoutSupported(layout) || ! processor->setBusesLayout(layout)) {
-        diagnostic = "FP_INSTRUMENT_LAYOUT: stereo output is required";
+    const auto setMainOutput = [&] (juce::AudioChannelSet channelSet) {
+        auto candidate = layout;
+        candidate.getChannelSet(false, 0) = channelSet;
+        return processor->checkBusesLayoutSupported(candidate) && processor->setBusesLayout(candidate);
+    };
+    if (! setMainOutput(juce::AudioChannelSet::stereo())
+        && ! setMainOutput(juce::AudioChannelSet::mono())) {
+        diagnostic = "FP_INSTRUMENT_LAYOUT: mono or stereo output is required";
         return false;
     }
 
-    processor->setPlayConfigDetails(0, 2, audioConfiguration.sampleRate, audioConfiguration.blockSize);
+    const auto outputChannels = processor->getMainBusNumOutputChannels();
+    processor->setPlayConfigDetails(0, outputChannels, audioConfiguration.sampleRate, audioConfiguration.blockSize);
     processor->prepareToPlay(audioConfiguration.sampleRate, audioConfiguration.blockSize);
     prepared = std::move(processor);
     diagnostic.clear();
@@ -74,6 +80,7 @@ bool SingleChannelHost::applyRawPreparedAtBlockBoundaryNoDiagnostic(juce::AudioP
 
     retired = active.release();
     active.reset(processor);
+    activeOutputChannels = active->getMainBusNumOutputChannels();
     channelState = SingleChannelState::ready;
     return true;
 }
@@ -85,16 +92,29 @@ void SingleChannelHost::reconfigureForDevice(AudioConfiguration configuration)
         return;
 
     active->releaseResources();
-    active->setPlayConfigDetails(0, 2, audioConfiguration.sampleRate, audioConfiguration.blockSize);
+    activeOutputChannels = active->getMainBusNumOutputChannels();
+    active->setPlayConfigDetails(0, activeOutputChannels, audioConfiguration.sampleRate, audioConfiguration.blockSize);
     active->prepareToPlay(audioConfiguration.sampleRate, audioConfiguration.blockSize);
 }
 
 void SingleChannelHost::process(juce::AudioBuffer<float>& audio, juce::MidiBuffer& midi)
 {
-    if (active != nullptr)
-        active->processBlock(audio, midi);
-    else
+    if (active == nullptr) {
         audio.clear();
+        return;
+    }
+
+    if (activeOutputChannels == 1) {
+        auto* monoChannel = audio.getWritePointer(0);
+        juce::AudioBuffer<float> monoAudio(&monoChannel, 1, audio.getNumSamples());
+        monoAudio.clear();
+        active->processBlock(monoAudio, midi);
+        for (int channel = 1; channel < audio.getNumChannels(); ++channel)
+            audio.copyFrom(channel, 0, monoAudio, 0, 0, audio.getNumSamples());
+        return;
+    }
+
+    active->processBlock(audio, midi);
 }
 
 } // namespace fishpond
