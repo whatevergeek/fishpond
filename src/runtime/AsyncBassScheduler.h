@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <utility>
@@ -95,7 +96,9 @@ private:
 
     void run()
     {
-        BassPlayerScheduler<Capacity> scheduler(queue);
+        // Chord-capable player storage is intentionally large. Keep it off this
+        // worker thread's small platform stack; this thread is not real-time.
+        auto scheduler = std::make_unique<BassPlayerScheduler<Capacity>>(queue);
         for (;;) {
             std::deque<Command> pending;
             {
@@ -107,21 +110,21 @@ private:
             }
             for (const auto& command : pending) {
                 if (command.type == CommandType::timing) {
-                    scheduler.setTiming(command.timing);
+                    scheduler->setTiming(command.timing);
                 }
                 else if (command.type == CommandType::replaceAll) {
-                    const auto startFrame = scheduler.nextBarFrame(renderFrame.load(std::memory_order_acquire));
+                    const auto startFrame = scheduler->nextBarFrame(renderFrame.load(std::memory_order_acquire));
                     for (const auto& pattern : command.patterns)
-                        scheduler.replaceStepsAtFrame(pattern.playerIndex, pattern.noteSteps, pattern.periodBeats, pattern.velocity,
-                                                      pattern.durationBeats, startFrame, pattern.channelId);
+                        scheduler->replaceStepsAtFrame(pattern.playerIndex, pattern.noteSteps, pattern.periodBeats, pattern.velocity,
+                                                       pattern.durationBeats, startFrame, pattern.channelId);
                 } else if (command.type == CommandType::remove) {
-                    scheduler.remove(command.playerIndex);
+                    scheduler->remove(command.playerIndex);
                 } else {
-                    scheduler.clear();
+                    scheduler->clear();
                     queue.requestPanic();
                 }
             }
-            scheduler.pump(renderFrame.load(std::memory_order_acquire));
+            scheduler->pump(renderFrame.load(std::memory_order_acquire));
         }
     }
 
