@@ -98,7 +98,13 @@ public:
 
     void clear() noexcept
     {
-        players = {};
+        // `Player` contains the preallocated chord storage. Assigning the
+        // entire array to `{}` materialises a second, very large array on the
+        // scheduler thread's stack. A silence/panic must only deactivate
+        // players; their storage will be overwritten when the next pattern is
+        // installed.
+        for (auto& player : players)
+            deactivate(player);
     }
 
     // A normal per-player stop leaves any already-reserved note-off in the
@@ -107,7 +113,7 @@ public:
     {
         if (playerIndex >= players.size())
             return false;
-        players[playerIndex] = {};
+        deactivate(players[playerIndex]);
         return true;
     }
 
@@ -153,6 +159,18 @@ private:
         std::uint64_t channelId { 1 };
         std::uint64_t nextFrame {};
     };
+
+    static void deactivate(Player& player) noexcept
+    {
+        player.stepCount = 0;
+        player.nextStep = 0;
+        player.periodFrames = 0;
+        player.durationFrames = 0;
+        player.periodBeats = 0.0;
+        player.durationBeats = 0.0;
+        player.channelId = 1;
+        player.nextFrame = 0;
+    }
 
     bool updatePlayerTiming(Player& player) noexcept
     {
