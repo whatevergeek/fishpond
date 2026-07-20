@@ -48,11 +48,20 @@ private:
             juce::PopupMenu menu;
             if (menuIndex != 0)
                 return menu;
-            menu.addItem(newFile, "New\tCmd+N");
-            menu.addItem(openFile, "Open...\tCmd+O");
+
+            const auto addFileItem = [&menu] (int itemID, const juce::String& name, juce::KeyPress shortcut) {
+                juce::PopupMenu::Item item(name);
+                item.itemID = itemID;
+                item.shortcutKeyDescription = shortcut.getTextDescriptionWithIcons();
+                menu.addItem(std::move(item));
+            };
+
+            const auto command = juce::ModifierKeys::commandModifier;
+            addFileItem(newFile, "New", juce::KeyPress('n', command, 0));
+            addFileItem(openFile, "Open...", juce::KeyPress('o', command, 0));
             menu.addSeparator();
-            menu.addItem(saveFile, "Save\tCmd+S");
-            menu.addItem(saveFileAs, "Save As...\tCmd+Shift+S");
+            addFileItem(saveFile, "Save", juce::KeyPress('s', command, 0));
+            addFileItem(saveFileAs, "Save As...", juce::KeyPress('s', command | juce::ModifierKeys::shiftModifier, 0));
             return menu;
         }
 
