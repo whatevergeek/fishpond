@@ -161,9 +161,6 @@ void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File
         return;
     }
 
-    if (slot.loadThread.joinable())
-        slot.loadThread.join();
-
     slot.editorWindow.reset();
     slot.chooseButton.setEnabled(false);
     slot.openEditorButton.setEnabled(false);
@@ -173,25 +170,45 @@ void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File
     const juce::Component::SafePointer<MainComponent> safeThis(this);
 
     instrumentsPanel.setText(name + " loading: " + bundleName, juce::dontSendNotification);
-    slot.loadThread = std::thread([this, slotIndex, bundle, configuration, loadId, bundleName, safeThis] {
-        fishpond::HostedInstrument preparedInstrument(configuration);
-        std::string preparationDiagnostic;
-        auto submitted = preparedInstrument.prepareBundle(bundle, preparationDiagnostic);
-        if (submitted) {
-            auto* processor = preparedInstrument.releasePrepared();
-            submitted = instrumentSlots[slotIndex].handoff.submit({ processor, configuration.version, loadId });
-            if (! submitted) {
-                delete processor;
-                preparationDiagnostic = "FP_GRAPH_QUEUE_FULL: instrument replacement queue is full";
-            }
-        }
+    auto format = std::make_shared<juce::VST3PluginFormat>();
+    juce::OwnedArray<juce::PluginDescription> descriptions;
+    format->findAllTypesForFile(descriptions, bundle.getFullPathName());
+    if (descriptions.size() != 1) {
+        finishInstrumentLoad(slotIndex, loadId, bundleName, false,
+                             "FP_INSTRUMENT_DISCOVERY: expected exactly one VST3 instrument in selected bundle");
+        return;
+    }
 
-        juce::MessageManager::callAsync([safeThis, slotIndex, loadId, bundleName, submitted,
-                                         diagnostic = juce::String(preparationDiagnostic)] {
-            if (safeThis != nullptr)
-                safeThis->finishInstrumentLoad(slotIndex, loadId, bundleName, submitted, diagnostic);
+    // JUCE delivers this callback on its message thread. Some commercial VST3s
+    // require creation, bus negotiation, and prepareToPlay to happen there, but
+    // it is still entirely outside the audio callback and audio keeps rendering.
+    format->createPluginInstanceAsync(*descriptions[0], configuration.sampleRate, configuration.blockSize,
+        [safeThis, slotIndex, loadId, bundleName, configuration, format]
+        (std::unique_ptr<juce::AudioPluginInstance> instance, const juce::String& loadError) {
+            if (safeThis == nullptr)
+                return;
+
+            std::string preparationDiagnostic;
+            auto submitted = instance != nullptr;
+            if (! submitted) {
+                preparationDiagnostic = "FP_INSTRUMENT_LOAD: " + loadError.toStdString();
+            } else {
+                fishpond::HostedInstrument preparedInstrument(configuration);
+                submitted = preparedInstrument.prepareProcessor(std::move(instance), preparationDiagnostic);
+                if (submitted) {
+                    auto* processor = preparedInstrument.releasePrepared();
+                    submitted = safeThis->instrumentSlots[slotIndex].handoff.submit(
+                        { processor, configuration.version, loadId });
+                    if (! submitted) {
+                        delete processor;
+                        preparationDiagnostic = "FP_GRAPH_QUEUE_FULL: instrument replacement queue is full";
+                    }
+                }
+            }
+
+            safeThis->finishInstrumentLoad(slotIndex, loadId, bundleName, submitted,
+                                           juce::String(preparationDiagnostic));
         });
-    });
 }
 
 void MainComponent::finishInstrumentLoad(std::size_t slotIndex, std::uint64_t loadId,
@@ -199,8 +216,6 @@ void MainComponent::finishInstrumentLoad(std::size_t slotIndex, std::uint64_t lo
                                          const juce::String& diagnostic)
 {
     auto& slot = instrumentSlots[slotIndex];
-    if (slot.loadThread.joinable())
-        slot.loadThread.join();
     slot.loading.store(false, std::memory_order_release);
     slot.chooseButton.setEnabled(true);
 
@@ -408,8 +423,6 @@ MainComponent::~MainComponent()
     deviceManager.closeAudioDevice();
     for (std::size_t slotIndex = 0; slotIndex < instrumentSlots.size(); ++slotIndex) {
         auto& slot = instrumentSlots[slotIndex];
-        if (slot.loadThread.joinable())
-            slot.loadThread.join();
         commitPendingInstrumentWhileStopped(slotIndex);
         while (slot.handoff.reclaimOnWorker() != nullptr) {}
     }

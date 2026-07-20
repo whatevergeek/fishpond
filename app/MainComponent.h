@@ -16,7 +16,6 @@
 #include <array>
 #include <atomic>
 #include <memory>
-#include <thread>
 #include <vector>
 
 class MainComponent final : public juce::Component,
@@ -40,7 +39,6 @@ private:
         std::unique_ptr<fishpond::HostedInstrument> instrument;
         fishpond::PreparedGraphHandoff<juce::AudioProcessor, 4> handoff;
         std::uint64_t channelId {};
-        std::thread loadThread;
         std::atomic<bool> loading {};
         std::atomic<std::uint64_t> submittedLoadId {};
         std::atomic<std::uint64_t> committedLoadId {};

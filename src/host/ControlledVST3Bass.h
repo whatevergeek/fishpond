@@ -9,6 +9,10 @@ public:
         : configuration(initialConfiguration), host(configuration) {}
 
     bool prepareBundle(const juce::File& bundle, std::string& diagnostic);
+    bool prepareProcessor(std::unique_ptr<juce::AudioProcessor> processor, std::string& diagnostic)
+    {
+        return host.prepareInstrument(std::move(processor), diagnostic);
+    }
     bool commitAtBlockBoundary(std::string& diagnostic);
     juce::AudioProcessor* releasePrepared() noexcept { return host.releasePrepared(); }
     bool applyRawPreparedAtBlockBoundary(juce::AudioProcessor* processor,

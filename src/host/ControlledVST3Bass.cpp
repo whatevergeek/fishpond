@@ -18,7 +18,7 @@ bool HostedInstrument::prepareBundle(const juce::File& bundle, std::string& diag
         diagnostic = "FP_INSTRUMENT_LOAD: " + loadError.toStdString();
         return false;
     }
-    return host.prepareInstrument(std::move(instance), diagnostic);
+    return prepareProcessor(std::move(instance), diagnostic);
 }
 
 bool HostedInstrument::commitAtBlockBoundary(std::string& diagnostic)
