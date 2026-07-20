@@ -5,6 +5,7 @@ juce_add_gui_app(FishpondApp
 target_sources(FishpondApp PRIVATE
     Main.cpp
     MainComponent.cpp
+    LiveCodingEditor.cpp
     "${PROJECT_SOURCE_DIR}/src/AudioShell.cpp"
     "${PROJECT_SOURCE_DIR}/src/host/ControlledVST3Bass.cpp"
     "${PROJECT_SOURCE_DIR}/src/host/SingleChannelHost.cpp"

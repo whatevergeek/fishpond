@@ -64,11 +64,9 @@ std::optional<std::size_t> singlePlayerStopIndex(const juce::String& command)
 
 MainComponent::MainComponent()
 {
-    liveCodingEditor.setMultiLine(true, true);
-    liveCodingEditor.setReturnKeyStartsNewLine(true);
-    liveCodingEditor.setText("# Shift+Return: evaluate the current line, or the selected lines\n"
-                             "# {C3 E3 G3} plays a chord; silence() stops all players\n"
-                             "Pa >> n(\"{C2 E2 G2}\", target=\"instrument_01\", p=0.5)\n");
+    liveCodingEditor.loadContent("# Shift+Return: evaluate the current line, or the selected lines\n"
+                                 "# {C3 E3 G3} plays a chord; silence() stops all players\n"
+                                 "Pa >> n(\"{C2 E2 G2}\", target=\"instrument_01\", p=0.5)\n");
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
@@ -335,14 +333,20 @@ void MainComponent::timerCallback()
     }
 }
 
-juce::String MainComponent::currentLine() const
+juce::Range<int> MainComponent::editorEvaluationRange() const
 {
-    const auto source = liveCodingEditor.getText();
-    const auto caret = liveCodingEditor.getCaretPosition();
-    const auto lineStart = source.substring(0, caret).lastIndexOfChar('\n');
-    const auto lineEnd = source.indexOfChar(caret, '\n');
-    return source.substring(lineStart < 0 ? 0 : lineStart + 1,
-                            lineEnd < 0 ? source.length() : lineEnd);
+    const auto selectedRange = liveCodingEditor.getHighlightedRegion();
+    const auto caretPosition = liveCodingEditor.getCaretPosition();
+    const auto startPosition = juce::CodeDocument::Position(liveCodingDocument,
+                                                             selectedRange.isEmpty() ? caretPosition : selectedRange.getStart());
+    const auto endPosition = juce::CodeDocument::Position(liveCodingDocument,
+                                                           selectedRange.isEmpty() ? caretPosition : selectedRange.getEnd());
+    const auto firstLine = startPosition.getLineNumber();
+    const auto lastLine = endPosition.getLineNumber();
+    const auto rangeStart = juce::CodeDocument::Position(liveCodingDocument, firstLine, 0).getPosition();
+    const auto rangeEnd = juce::CodeDocument::Position(liveCodingDocument, lastLine,
+                                                        liveCodingDocument.getLine(lastLine).length()).getPosition();
+    return { rangeStart, rangeEnd };
 }
 
 bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origin)
@@ -353,8 +357,10 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origi
                         || juce::ModifierKeys::getCurrentModifiers().isShiftDown();
     if (! shiftDown)
         return false;
-    const auto selectedText = liveCodingEditor.getHighlightedText();
-    executeEditorText(selectedText.isNotEmpty() ? selectedText : currentLine());
+    const auto range = editorEvaluationRange();
+    const auto source = liveCodingEditor.getTextInRange(range);
+    liveCodingEditor.flashRange(range);
+    executeEditorText(source);
     return true;
 }
 

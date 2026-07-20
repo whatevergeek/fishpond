@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AudioShell.h"
+#include "LiveCodingEditor.h"
 #include "host/ControlledVST3Bass.h"
 #include "mixer/ChannelRegistry.h"
 #include "runtime/AsyncBassScheduler.h"
@@ -47,7 +48,7 @@ private:
     void renameInstrumentChannel(std::size_t slotIndex);
     void timerCallback() override;
     void updateSchedulerTiming();
-    juce::String currentLine() const;
+    juce::Range<int> editorEvaluationRange() const;
     bool keyPressed(const juce::KeyPress& key, juce::Component* origin) override;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
@@ -72,7 +73,9 @@ private:
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
-    juce::TextEditor liveCodingEditor;
+    juce::CodeDocument liveCodingDocument;
+    FishpondCodeTokeniser liveCodingTokeniser;
+    LiveCodingEditor liveCodingEditor { liveCodingDocument, liveCodingTokeniser };
     juce::TextEditor diagnostics;
     juce::Label instrumentsPanel;
     juce::Label deviceStatus;
