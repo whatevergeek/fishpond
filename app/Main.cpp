@@ -48,11 +48,11 @@ private:
             juce::PopupMenu menu;
             if (menuIndex != 0)
                 return menu;
-            menu.addItem(newFile, "New\\tCmd+N");
-            menu.addItem(openFile, "Open...\\tCmd+O");
+            menu.addItem(newFile, "New\tCmd+N");
+            menu.addItem(openFile, "Open...\tCmd+O");
             menu.addSeparator();
-            menu.addItem(saveFile, "Save\\tCmd+S");
-            menu.addItem(saveFileAs, "Save As...\\tCmd+Shift+S");
+            menu.addItem(saveFile, "Save\tCmd+S");
+            menu.addItem(saveFileAs, "Save As...\tCmd+Shift+S");
             return menu;
         }
 
