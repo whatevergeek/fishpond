@@ -126,13 +126,28 @@ cmake --build --preset app-macos --target FishpondApp
 open build/app-macos/app/FishpondApp_artefacts/Debug/Fishpond.app
 ```
 
-At this P1.2 stage, the app verifies the window, tab navigation, audio-device
-status, and start/stop lifecycle. It evaluates editor requests on a dedicated
-embedded-Python thread: press **Ctrl+Return** to evaluate the current
-blank-line-delimited code block, or **Shift+Return** to evaluate the current
-line. The Execute button evaluates the current block. A ready instrument
-channel is still required before notes can be heard, so the default `bass`
-example deliberately reports `FP_TARGET_UNAVAILABLE`.
+The app evaluates editor requests on a dedicated embedded-Python thread. Press
+**Shift+Return** to evaluate the current line or the selected lines; the
+submitted line range flashes orange once. The Live Coding editor recognises
+Fishpond/Sardine-style helpers including `n()`, chord groups such as
+`{C3 E3 G3}`, rests (`.`), named players, and `silence()`.
+
+Use the native **File** menu (or standard macOS shortcuts) to manage Live
+Coding text files:
+
+- **New** (`Cmd+N`) clears the editor after a discard confirmation when it has
+  unsaved changes.
+- **Open…** (`Cmd+O`) loads a `.fp` file after the same confirmation.
+- **Save** (`Cmd+S`) saves the current `.fp`, or opens Save As for a new file.
+- **Save As…** (`Cmd+Shift+S`) creates a `.fp` file; Fishpond appends the
+  extension when necessary.
+
+For now, `.fp` stores only the Live Coding text. It does not store loaded
+plugins, instrument aliases, audio-device selection, BPM, or active players.
+
+A ready instrument channel is required before notes can be heard. Use the
+**Instruments** tab to load a VST3 into one of the four slots, then route with
+`target="instrument_01"` through `target="instrument_04"`.
 
 On macOS, build the real VST3 fixture with `cmake --preset juce-fixture-macos`
 then `cmake --build --preset juce-fixture-macos --target FishpondFixtureInstrument_VST3`.

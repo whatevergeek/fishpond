@@ -67,6 +67,7 @@ MainComponent::MainComponent()
     liveCodingEditor.loadContent("# Shift+Return: evaluate the current line, or the selected lines\n"
                                  "# {C3 E3 G3} plays a chord; silence() stops all players\n"
                                  "Pa >> n(\"{C2 E2 G2}\", target=\"instrument_01\", p=0.5)\n");
+    liveCodingDocument.setSavePoint();
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
@@ -199,6 +200,116 @@ void MainComponent::renameInstrumentChannel(std::size_t slotIndex)
     const auto channel = channels.resolve(slot.channelName.getText().toStdString());
     instrumentsPanel.setText("Channel renamed: " + slot.channelName.getText() + " (target=\""
                                  + juce::String(channel->alias) + "\")", juce::dontSendNotification);
+}
+
+void MainComponent::confirmDiscardLiveCodingChanges(const juce::String& action,
+                                                    std::function<void()> continuation)
+{
+    if (! liveCodingDocument.hasChangedSinceSavePoint())
+    {
+        continuation();
+        return;
+    }
+
+    juce::AlertWindow::showOkCancelBox(juce::AlertWindow::QuestionIcon,
+                                       "Unsaved Live Coding text",
+                                       "Discard unsaved changes and " + action + "?",
+                                       "Discard", "Cancel", this,
+                                       juce::ModalCallbackFunction::create(
+                                           [continuation = std::move(continuation)] (int result) mutable {
+                                               if (result != 0)
+                                                   continuation();
+                                           }));
+}
+
+void MainComponent::newLiveCodingFile()
+{
+    const juce::Component::SafePointer<MainComponent> safeThis(this);
+    confirmDiscardLiveCodingChanges("create a new file", [safeThis] {
+        if (safeThis == nullptr)
+            return;
+        safeThis->liveCodingEditor.loadContent({});
+        safeThis->liveCodingDocument.setSavePoint();
+        safeThis->liveCodingFile = juce::File();
+        safeThis->diagnostics.setText("New Live Coding file", juce::dontSendNotification);
+    });
+}
+
+void MainComponent::openLiveCodingFile()
+{
+    const juce::Component::SafePointer<MainComponent> safeThis(this);
+    confirmDiscardLiveCodingChanges("open another file", [safeThis] {
+        if (safeThis == nullptr)
+            return;
+        const auto initialFolder = safeThis->liveCodingFile.existsAsFile()
+            ? safeThis->liveCodingFile.getParentDirectory()
+            : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+        safeThis->liveCodingFileChooser = std::make_unique<juce::FileChooser>("Open Fishpond Live Coding file", initialFolder, "*.fp");
+        safeThis->liveCodingFileChooser->launchAsync(juce::FileBrowserComponent::openMode
+                                                          | juce::FileBrowserComponent::canSelectFiles,
+            [safeThis] (const juce::FileChooser& chooser) {
+                const auto file = chooser.getResult();
+                if (safeThis == nullptr)
+                    return;
+                safeThis->liveCodingFileChooser.reset();
+                if (file != juce::File())
+                    safeThis->loadLiveCodingFile(file);
+            });
+    });
+}
+
+void MainComponent::saveLiveCodingFile()
+{
+    if (liveCodingFile.existsAsFile()) {
+        saveLiveCodingFileTo(liveCodingFile);
+        return;
+    }
+    saveLiveCodingFileAs();
+}
+
+void MainComponent::saveLiveCodingFileAs()
+{
+    const auto initialFile = liveCodingFile.existsAsFile()
+        ? liveCodingFile
+        : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("untitled.fp");
+    liveCodingFileChooser = std::make_unique<juce::FileChooser>("Save Fishpond Live Coding file", initialFile, "*.fp");
+    liveCodingFileChooser->launchAsync(juce::FileBrowserComponent::saveMode
+                                            | juce::FileBrowserComponent::canSelectFiles
+                                            | juce::FileBrowserComponent::warnAboutOverwriting,
+        [this] (const juce::FileChooser& chooser) {
+            const auto file = chooser.getResult();
+            liveCodingFileChooser.reset();
+            if (file != juce::File())
+                saveLiveCodingFileTo(file);
+        });
+}
+
+void MainComponent::loadLiveCodingFile(const juce::File& file)
+{
+    auto stream = file.createInputStream();
+    if (stream == nullptr) {
+        diagnostics.setText("FP_FILE_OPEN_FAILED: " + file.getFullPathName(), juce::dontSendNotification);
+        return;
+    }
+
+    liveCodingEditor.loadContent(stream->readEntireStreamAsString());
+    liveCodingDocument.setSavePoint();
+    liveCodingFile = file;
+    diagnostics.setText("Opened " + file.getFileName(), juce::dontSendNotification);
+}
+
+void MainComponent::saveLiveCodingFileTo(juce::File file)
+{
+    if (! file.hasFileExtension("fp"))
+        file = file.withFileExtension(".fp");
+    if (! file.replaceWithText(liveCodingDocument.getAllContent())) {
+        diagnostics.setText("FP_FILE_SAVE_FAILED: " + file.getFullPathName(), juce::dontSendNotification);
+        return;
+    }
+
+    liveCodingFile = file;
+    liveCodingDocument.setSavePoint();
+    diagnostics.setText("Saved " + file.getFileName(), juce::dontSendNotification);
 }
 
 MainComponent::~MainComponent()
@@ -351,7 +462,30 @@ juce::Range<int> MainComponent::editorEvaluationRange() const
 
 bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origin)
 {
-    if (origin != &liveCodingEditor || ! key.isKeyCode(juce::KeyPress::returnKey))
+    if (origin != &liveCodingEditor)
+        return false;
+
+    const auto modifiers = key.getModifiers();
+    if (modifiers.isCommandDown()) {
+        const auto character = juce::CharacterFunctions::toLowerCase(key.getTextCharacter());
+        if (character == 'n') {
+            newLiveCodingFile();
+            return true;
+        }
+        if (character == 'o') {
+            openLiveCodingFile();
+            return true;
+        }
+        if (character == 's') {
+            if (modifiers.isShiftDown())
+                saveLiveCodingFileAs();
+            else
+                saveLiveCodingFile();
+            return true;
+        }
+    }
+
+    if (! key.isKeyCode(juce::KeyPress::returnKey))
         return false;
     const auto shiftDown = key.getModifiers().isShiftDown()
                         || juce::ModifierKeys::getCurrentModifiers().isShiftDown();

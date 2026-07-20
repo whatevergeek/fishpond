@@ -26,6 +26,10 @@ public:
     ~MainComponent() override;
 
     void resized() override;
+    void newLiveCodingFile();
+    void openLiveCodingFile();
+    void saveLiveCodingFile();
+    void saveLiveCodingFileAs();
 
 private:
     static constexpr std::size_t instrumentSlotCount = 4;
@@ -46,6 +50,9 @@ private:
     void loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle);
     void openInstrumentEditor(std::size_t slotIndex);
     void renameInstrumentChannel(std::size_t slotIndex);
+    void loadLiveCodingFile(const juce::File& file);
+    void saveLiveCodingFileTo(juce::File file);
+    void confirmDiscardLiveCodingChanges(const juce::String& action, std::function<void()> continuation);
     void timerCallback() override;
     void updateSchedulerTiming();
     juce::Range<int> editorEvaluationRange() const;
@@ -76,6 +83,8 @@ private:
     juce::CodeDocument liveCodingDocument;
     FishpondCodeTokeniser liveCodingTokeniser;
     LiveCodingEditor liveCodingEditor { liveCodingDocument, liveCodingTokeniser };
+    juce::File liveCodingFile;
+    std::unique_ptr<juce::FileChooser> liveCodingFileChooser;
     juce::TextEditor diagnostics;
     juce::Label instrumentsPanel;
     juce::Label deviceStatus;
