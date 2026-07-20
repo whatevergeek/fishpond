@@ -14,15 +14,24 @@ bool SingleChannelHost::prepareInstrument(std::unique_ptr<juce::AudioProcessor> 
         diagnostic = "FP_INSTRUMENT_LAYOUT: instrument has no main output bus";
         return false;
     }
-    const auto setMainOutput = [&] (juce::AudioChannelSet channelSet) {
-        auto candidate = layout;
-        candidate.getChannelSet(false, 0) = channelSet;
-        return processor->checkBusesLayoutSupported(candidate) && processor->setBusesLayout(candidate);
+    const auto isMonoOrStereo = [] (const juce::AudioChannelSet& channelSet) {
+        return channelSet == juce::AudioChannelSet::mono()
+            || channelSet == juce::AudioChannelSet::stereo();
     };
-    if (! setMainOutput(juce::AudioChannelSet::stereo())
-        && ! setMainOutput(juce::AudioChannelSet::mono())) {
-        diagnostic = "FP_INSTRUMENT_LAYOUT: mono or stereo output is required";
-        return false;
+
+    // Prefer the plug-in's current main-output layout. Some VST3s expose a
+    // valid default bus but reject every explicit setBusesLayout request.
+    if (! isMonoOrStereo(layout.getChannelSet(false, 0))) {
+        const auto setMainOutput = [&] (juce::AudioChannelSet channelSet) {
+            auto candidate = layout;
+            candidate.getChannelSet(false, 0) = channelSet;
+            return processor->checkBusesLayoutSupported(candidate) && processor->setBusesLayout(candidate);
+        };
+        if (! setMainOutput(juce::AudioChannelSet::stereo())
+            && ! setMainOutput(juce::AudioChannelSet::mono())) {
+            diagnostic = "FP_INSTRUMENT_LAYOUT: mono or stereo output is required";
+            return false;
+        }
     }
 
     const auto outputChannels = processor->getMainBusNumOutputChannels();
