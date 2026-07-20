@@ -4,6 +4,9 @@ Run this on macOS with supported instrument `.vst3` bundles that are not the
 Fishpond fixture. This is a controlled four-slot load path, not catalogue scan
 coverage.
 
+Fishpond selects an instrument class from VST3 bundles that expose more than
+one class; effect-only bundles are not valid for these instrument slots.
+
 1. Launch Fishpond, open **Instruments**, and click **Load Inst 01 VST3...**.
    Select the instrument bundle and confirm the status reads
    `Instrument 01 VST3 ready: …`.

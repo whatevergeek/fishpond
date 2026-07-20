@@ -1,18 +1,29 @@
 #include "host/ControlledVST3Bass.h"
 
 namespace fishpond {
+namespace {
+juce::PluginDescription* findInstrumentDescription(juce::OwnedArray<juce::PluginDescription>& descriptions)
+{
+    for (auto* description : descriptions)
+        if (description != nullptr && description->isInstrument)
+            return description;
+    return nullptr;
+}
+}
+
 bool HostedInstrument::prepareBundle(const juce::File& bundle, std::string& diagnostic)
 {
     juce::VST3PluginFormat vst3;
     juce::OwnedArray<juce::PluginDescription> descriptions;
     vst3.findAllTypesForFile(descriptions, bundle.getFullPathName());
-    if (descriptions.size() != 1) {
-        diagnostic = "FP_INSTRUMENT_DISCOVERY: expected exactly one VST3 instrument in selected bundle";
+    auto* description = findInstrumentDescription(descriptions);
+    if (description == nullptr) {
+        diagnostic = "FP_INSTRUMENT_DISCOVERY: selected bundle has no VST3 instrument class";
         return false;
     }
 
     juce::String loadError;
-    auto instance = vst3.createInstanceFromDescription(*descriptions[0], configuration.sampleRate,
+    auto instance = vst3.createInstanceFromDescription(*description, configuration.sampleRate,
                                                         configuration.blockSize, loadError);
     if (instance == nullptr) {
         diagnostic = "FP_INSTRUMENT_LOAD: " + loadError.toStdString();

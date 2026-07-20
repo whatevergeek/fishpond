@@ -173,16 +173,22 @@ void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File
     auto format = std::make_shared<juce::VST3PluginFormat>();
     juce::OwnedArray<juce::PluginDescription> descriptions;
     format->findAllTypesForFile(descriptions, bundle.getFullPathName());
-    if (descriptions.size() != 1) {
+    juce::PluginDescription* description = nullptr;
+    for (auto* candidate : descriptions)
+        if (candidate != nullptr && candidate->isInstrument) {
+            description = candidate;
+            break;
+        }
+    if (description == nullptr) {
         finishInstrumentLoad(slotIndex, loadId, bundleName, false,
-                             "FP_INSTRUMENT_DISCOVERY: expected exactly one VST3 instrument in selected bundle");
+                             "FP_INSTRUMENT_DISCOVERY: selected bundle has no VST3 instrument class");
         return;
     }
 
     // JUCE delivers this callback on its message thread. Some commercial VST3s
     // require creation, bus negotiation, and prepareToPlay to happen there, but
     // it is still entirely outside the audio callback and audio keeps rendering.
-    format->createPluginInstanceAsync(*descriptions[0], configuration.sampleRate, configuration.blockSize,
+    format->createPluginInstanceAsync(*description, configuration.sampleRate, configuration.blockSize,
         [safeThis, slotIndex, loadId, bundleName, configuration, format]
         (std::unique_ptr<juce::AudioPluginInstance> instance, const juce::String& loadError) {
             if (safeThis == nullptr)
