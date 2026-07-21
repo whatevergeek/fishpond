@@ -132,6 +132,12 @@ submitted line range flashes orange once. The Live Coding editor recognises
 Fishpond/Sardine-style helpers including `n()`, chord groups such as
 `{C3 E3 G3}`, rests (`.`), named players, and `silence()`.
 
+Tempo is intentionally code-driven: the transport displays the current value
+as `clock.tempo = 120`. Evaluate `clock.tempo = 90` (or another value from 30
+to 300) to change it. The adjacent **Master volume** fader controls the final
+stereo mix from `-60 dB` to `0 dB`; double-click it to return to unity gain
+(`0 dB`).
+
 Use the native **File** menu (or standard macOS shortcuts) to manage Live
 Coding text files:
 

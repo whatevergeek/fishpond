@@ -84,6 +84,8 @@ private:
     fishpond::AsyncBassScheduler<8192> bassScheduler { noteQueue, renderFrame };
     std::atomic<double> activeSampleRate { 48'000.0 };
     std::atomic<std::uint32_t> activeBlockSize { 512 };
+    std::atomic<float> masterGain { 1.0f };
+    double tempoBpm { 120.0 };
     // Even values are stable snapshots; an odd value means device configuration is changing.
     std::atomic<std::uint64_t> audioConfigurationVersion { 2 };
     std::uint64_t observedPanic {};
@@ -103,6 +105,7 @@ private:
     juce::Label instrumentsPanel;
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
-    juce::Label tempoLabel { {}, "120 BPM" };
-    juce::Slider tempoSlider;
+    juce::Label tempoLabel { {}, "clock.tempo = 120" };
+    juce::Label masterVolumeLabel { {}, "Master volume" };
+    juce::Slider masterVolumeSlider;
 };

@@ -117,22 +117,24 @@ MainComponent::MainComponent()
     deviceManager.addAudioCallback(this);
     for (auto& midi : channelMidi)
         midi.ensureSize(4096);
-    tempoSlider.setRange(30.0, 300.0, 1.0);
-    tempoSlider.setValue(120.0, juce::dontSendNotification);
-    tempoSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-    tempoSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 56, 22);
-    tempoSlider.onValueChange = [this] {
-        tempoLabel.setText(juce::String(tempoSlider.getValue(), 0) + " BPM", juce::dontSendNotification);
-        if (! tempoSlider.isMouseButtonDown())
-            updateSchedulerTiming();
+    masterVolumeLabel.setJustificationType(juce::Justification::centredRight);
+    masterVolumeSlider.setRange(-60.0, 0.0, 0.5);
+    masterVolumeSlider.setValue(0.0, juce::dontSendNotification);
+    masterVolumeSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    masterVolumeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 22);
+    masterVolumeSlider.setTextValueSuffix(" dB");
+    masterVolumeSlider.setDoubleClickReturnValue(true, 0.0);
+    masterVolumeSlider.onValueChange = [this] {
+        masterGain.store(juce::Decibels::decibelsToGain(static_cast<float>(masterVolumeSlider.getValue())),
+                         std::memory_order_release);
     };
-    tempoSlider.onDragEnd = [this] { updateSchedulerTiming(); };
     startTimerHz(30);
     addAndMakeVisible(tabs);
     addAndMakeVisible(deviceStatus);
     addAndMakeVisible(startStopButton);
     addAndMakeVisible(tempoLabel);
-    addAndMakeVisible(tempoSlider);
+    addAndMakeVisible(masterVolumeLabel);
+    addAndMakeVisible(masterVolumeSlider);
     setSize(1040, 700);
 }
 
@@ -479,8 +481,8 @@ void MainComponent::timerCallback()
             continue;
         }
         if (completion.result.changedTempoBpm) {
-            tempoSlider.setValue(*completion.result.changedTempoBpm, juce::dontSendNotification);
-            tempoLabel.setText(juce::String(*completion.result.changedTempoBpm, 0) + " BPM",
+            tempoBpm = *completion.result.changedTempoBpm;
+            tempoLabel.setText("clock.tempo = " + juce::String(tempoBpm, 0),
                                juce::dontSendNotification);
             updateSchedulerTiming();
         }
@@ -639,10 +641,11 @@ void MainComponent::resized()
 {
     auto area = getLocalBounds().reduced(12);
     auto transport = area.removeFromTop(34);
-    deviceStatus.setBounds(transport.removeFromLeft(500));
-    tempoLabel.setBounds(transport.removeFromLeft(76));
-    tempoSlider.setBounds(transport.removeFromLeft(180));
     startStopButton.setBounds(transport.removeFromRight(120));
+    masterVolumeSlider.setBounds(transport.removeFromRight(160));
+    masterVolumeLabel.setBounds(transport.removeFromRight(105));
+    tempoLabel.setBounds(transport.removeFromRight(165));
+    deviceStatus.setBounds(transport);
     tabs.setBounds(area);
     auto liveArea = liveCodingPanel.getLocalBounds().reduced(8);
     diagnostics.setBounds(liveArea.removeFromBottom(84));
@@ -687,7 +690,7 @@ void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
 void MainComponent::updateSchedulerTiming()
 {
     bassScheduler.setTiming({ activeSampleRate.load(std::memory_order_acquire),
-                              activeBlockSize.load(std::memory_order_acquire), tempoSlider.getValue() });
+                              activeBlockSize.load(std::memory_order_acquire), tempoBpm });
 }
 
 void MainComponent::audioDeviceStopped()
@@ -757,5 +760,6 @@ void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, f
         for (int channel = 0; channel < outputChannels; ++channel)
             audio.addFrom(channel, 0, instrumentAudio, channel, 0, samples);
     }
+    audio.applyGain(masterGain.load(std::memory_order_acquire));
     renderFrame.store(start + samples);
 }
