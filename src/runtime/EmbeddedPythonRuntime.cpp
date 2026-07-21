@@ -42,6 +42,23 @@ std::optional<double> clockTempo(PyObject* globals)
     Py_DECREF(bpm);
     return valid ? std::optional<double>(value) : std::nullopt;
 }
+
+std::optional<double> masterVolume(PyObject* globals)
+{
+    auto* master = PyDict_GetItemString(globals, "master");
+    if (master == nullptr)
+        return std::nullopt;
+    auto* volume = PyObject_GetAttrString(master, "volume");
+    if (volume == nullptr) {
+        PyErr_Clear();
+        return std::nullopt;
+    }
+    const auto value = PyFloat_AsDouble(volume);
+    const auto valid = ! PyErr_Occurred();
+    PyErr_Clear();
+    Py_DECREF(volume);
+    return valid ? std::optional<double>(value) : std::nullopt;
+}
 }
 
 EmbeddedPythonRuntime::EmbeddedPythonRuntime()
@@ -102,6 +119,18 @@ EmbeddedPythonRuntime::EmbeddedPythonRuntime()
             "        if self._running:\n"
             "            self._beat += float(beats)\n"
             "clock = _FishpondClock()\n"
+            "class _FishpondMaster:\n"
+            "    def __init__(self):\n"
+            "        self._volume = 0.0\n"
+            "    @property\n"
+            "    def volume(self):\n"
+            "        return self._volume\n"
+            "    @volume.setter\n"
+            "    def volume(self, value):\n"
+            "        if not isinstance(value, (int, float)) or isinstance(value, bool) or not -60 <= value <= 0:\n"
+            "            raise ValueError('FP_MASTER_VOLUME_INVALID: volume must be between -60 and 0 dB')\n"
+            "        self._volume = float(value)\n"
+            "master = _FishpondMaster()\n"
             "class _FishpondPattern:\n"
             "    def __init__(self, notes, target, keywords):\n"
             "        self.notes = notes\n"
@@ -161,6 +190,7 @@ PythonEvaluationResult EmbeddedPythonRuntime::evaluate(const std::string& source
         return { false, diagnostic };
     const auto state = PyGILState_Ensure();
     const auto priorTempo = clockTempo(static_cast<PyObject*>(globals));
+    const auto priorMasterVolume = masterVolume(static_cast<PyObject*>(globals));
     PyObject* result = PyRun_StringFlags(source.c_str(), Py_file_input,
                                          static_cast<PyObject*>(globals), static_cast<PyObject*>(globals), nullptr);
     if (result == nullptr) {
@@ -170,8 +200,10 @@ PythonEvaluationResult EmbeddedPythonRuntime::evaluate(const std::string& source
     }
     Py_DECREF(result);
     const auto currentTempo = clockTempo(static_cast<PyObject*>(globals));
+    const auto currentMasterVolume = masterVolume(static_cast<PyObject*>(globals));
     PyGILState_Release(state);
     diagnostic.clear();
-    return { true, "Executed", currentTempo != priorTempo ? currentTempo : std::nullopt };
+    return { true, "Executed", currentTempo != priorTempo ? currentTempo : std::nullopt,
+             currentMasterVolume != priorMasterVolume ? currentMasterVolume : std::nullopt };
 }
 }

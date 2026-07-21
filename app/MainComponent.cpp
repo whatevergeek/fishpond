@@ -486,6 +486,12 @@ void MainComponent::timerCallback()
                                juce::dontSendNotification);
             updateSchedulerTiming();
         }
+        if (completion.result.changedMasterVolumeDb) {
+            const auto volumeDb = *completion.result.changedMasterVolumeDb;
+            masterVolumeSlider.setValue(volumeDb, juce::dontSendNotification);
+            masterGain.store(juce::Decibels::decibelsToGain(static_cast<float>(volumeDb)),
+                             std::memory_order_release);
+        }
         const auto command = juce::String(completion.source).trim();
         juce::StringArray commandLines;
         commandLines.addLines(juce::String(completion.source));
@@ -642,8 +648,10 @@ void MainComponent::resized()
     auto area = getLocalBounds().reduced(12);
     auto transport = area.removeFromTop(34);
     startStopButton.setBounds(transport.removeFromRight(120));
-    masterVolumeSlider.setBounds(transport.removeFromRight(160));
+    transport.removeFromRight(28); // Fixed space separates the destructive audio action from level controls.
+    masterVolumeSlider.setBounds(transport.removeFromRight(190));
     masterVolumeLabel.setBounds(transport.removeFromRight(105));
+    transport.removeFromRight(18);
     tempoLabel.setBounds(transport.removeFromRight(165));
     deviceStatus.setBounds(transport);
     tabs.setBounds(area);

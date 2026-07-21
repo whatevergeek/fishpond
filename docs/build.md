@@ -136,7 +136,13 @@ Tempo is intentionally code-driven: the transport displays the current value
 as `clock.bpm = 120`. Evaluate `clock.bpm = 90` (or another value from 30
 to 300) to change it. The adjacent **Master volume** fader controls the final
 stereo mix from `-60 dB` to `0 dB`; double-click it to return to unity gain
-(`0 dB`).
+(`0 dB`). You can set the same control from Live Coding with, for example,
+`master.volume = -12`; valid values are from `-60 dB` to `0 dB`, and a
+successful code evaluation updates the fader immediately.
+
+Fishpond opens as a normal, resizable `1280 x 800` desktop window. Use the
+platform's native zoom/maximise control to enlarge it, or choose **View > Enter
+Full Screen** (`Cmd+Ctrl+F` on macOS) for a focused performance workspace.
 
 Use the native **File** menu (or standard macOS shortcuts) to manage Live
 Coding text files:

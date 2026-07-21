@@ -25,7 +25,9 @@ private:
             setUsingNativeTitleBar(true);
             setContentOwned(new MainComponent(), true);
             setMenuBar(this);
-            centreWithSize(1040, 700);
+            setResizable(true, true);
+            setResizeLimits(1000, 650, 3840, 2400);
+            centreWithSize(1280, 800);
             setVisible(true);
         }
 
@@ -38,14 +40,24 @@ private:
             newFile = 1,
             openFile,
             saveFile,
-            saveFileAs
+            saveFileAs,
+            toggleFullScreen
         };
 
-        juce::StringArray getMenuBarNames() override { return { "File" }; }
+        juce::StringArray getMenuBarNames() override { return { "File", "View" }; }
 
         juce::PopupMenu getMenuForIndex(int menuIndex, const juce::String&) override
         {
             juce::PopupMenu menu;
+            if (menuIndex == 1) {
+                juce::PopupMenu::Item item(isFullScreen() ? "Exit Full Screen" : "Enter Full Screen");
+                item.itemID = toggleFullScreen;
+                item.shortcutKeyDescription = juce::KeyPress('f', juce::ModifierKeys::commandModifier
+                                                                  | juce::ModifierKeys::ctrlModifier, 0)
+                                                  .getTextDescriptionWithIcons();
+                menu.addItem(std::move(item));
+                return menu;
+            }
             if (menuIndex != 0)
                 return menu;
 
@@ -67,6 +79,10 @@ private:
 
         void menuItemSelected(int menuItemID, int) override
         {
+            if (menuItemID == toggleFullScreen) {
+                setFullScreen(! isFullScreen());
+                return;
+            }
             auto* editor = dynamic_cast<MainComponent*>(getContentComponent());
             if (editor == nullptr)
                 return;

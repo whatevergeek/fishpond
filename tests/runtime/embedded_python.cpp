@@ -48,6 +48,16 @@ int main(int argc, char** argv)
             && runtime.evaluate("clock.start(); clock.advance(1.5); clock.stop(); assert not clock.running and clock.beat == 0").accepted
             && ! invalidTempo.accepted && invalidTempo.diagnostic.find("FP_TEMPO_INVALID") != std::string::npos ? 0 : 1;
     }
+    if (test == "master-volume") {
+        const auto invalidVolume = runtime.evaluate("master.volume = 1");
+        const auto volumeChange = runtime.evaluate("master.volume = -12");
+        return volumeChange.accepted && volumeChange.changedMasterVolumeDb
+            && *volumeChange.changedMasterVolumeDb == -12.0
+            && runtime.evaluate("assert master.volume == -12").accepted
+            && runtime.evaluate("master.volume *= 0.5").changedMasterVolumeDb == std::optional<double>(-6.0)
+            && ! invalidVolume.accepted
+            && invalidVolume.diagnostic.find("FP_MASTER_VOLUME_INVALID") != std::string::npos ? 0 : 1;
+    }
     if (test == "syntax-location") {
         const auto result = runtime.evaluate("tempo =\n");
         return ! result.accepted && result.diagnostic.find("line 1") != std::string::npos ? 0 : 1;

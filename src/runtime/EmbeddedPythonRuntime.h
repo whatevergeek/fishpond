@@ -8,6 +8,7 @@ struct PythonEvaluationResult {
     bool accepted {};
     std::string diagnostic;
     std::optional<double> changedTempoBpm;
+    std::optional<double> changedMasterVolumeDb;
 };
 
 class EmbeddedPythonRuntime {
