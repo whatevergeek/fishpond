@@ -17,8 +17,20 @@ bool isKeyword(const juce::String& word)
 
 bool isFunction(const juce::String& word)
 {
-    static const juce::StringArray functions { "n", "silence", "panic", "tempo", "print", "range", "len" };
+    static const juce::StringArray functions { "n", "silence", "panic", "print", "range", "len" };
     return functions.contains(word);
+}
+
+bool isRuntimeObject(const juce::String& word)
+{
+    static const juce::StringArray objects { "clock", "master", "console" };
+    return objects.contains(word);
+}
+
+bool isRuntimeMember(const juce::String& word)
+{
+    static const juce::StringArray members { "bpm", "tempo", "volume", "append", "clear" };
+    return members.contains(word);
 }
 }
 
@@ -62,6 +74,10 @@ int FishpondCodeTokeniser::readNextToken(juce::CodeDocument::Iterator& source)
             return tokenType_keyword;
         if (isFunction(word))
             return tokenType_function;
+        if (isRuntimeObject(word))
+            return tokenType_runtimeObject;
+        if (isRuntimeMember(word))
+            return tokenType_runtimeMember;
         if (word.length() == 2 && word[0] == 'P' && word[1] >= 'a' && word[1] <= 'z')
             return tokenType_player;
         return tokenType_identifier;
@@ -83,6 +99,8 @@ juce::CodeEditorComponent::ColourScheme FishpondCodeTokeniser::getDefaultColourS
     scheme.set("Comment", juce::Colour(0xff7d8799));
     scheme.set("Keyword", juce::Colour(0xffc678dd));
     scheme.set("Function", juce::Colour(0xff61afef));
+    scheme.set("RuntimeObject", juce::Colour(0xff56b6c2));
+    scheme.set("RuntimeMember", juce::Colour(0xffe5c07b));
     scheme.set("Player", juce::Colour(0xffe5c07b));
     scheme.set("Number", juce::Colour(0xffd19a66));
     scheme.set("String", juce::Colour(0xff98c379));

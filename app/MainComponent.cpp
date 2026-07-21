@@ -71,6 +71,7 @@ MainComponent::MainComponent()
     liveCodingEditor.addKeyListener(this);
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
+    diagnostics.setScrollbarsShown(true);
     diagnostics.setText("Ready. Load an instrument in Instruments, then evaluate a pattern.", juce::dontSendNotification);
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(diagnostics);
@@ -476,8 +477,29 @@ void MainComponent::timerCallback()
 
     fishpond::PythonExecutionCompletion completion;
     while (pythonWorker.tryTakeCompletion(completion)) {
+        const auto command = juce::String(completion.source).trim();
+        if (completion.result.changedConsoleAppend)
+            consoleAppend = *completion.result.changedConsoleAppend;
+
+        const auto showConsole = [this, &completion] (juce::String fallback) {
+            if (completion.result.consoleClearRequested)
+                diagnostics.clear();
+
+            auto output = juce::String(completion.result.consoleOutput);
+            if (output.isEmpty()) {
+                if (completion.result.consoleClearRequested)
+                    return;
+                output = std::move(fallback);
+            }
+
+            if (consoleAppend && ! diagnostics.getText().isEmpty())
+                output = diagnostics.getText() + "\n" + output;
+            diagnostics.setText(output, juce::dontSendNotification);
+            diagnostics.moveCaretToEnd(false);
+        };
+
         if (! completion.result.accepted) {
-            diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
+            showConsole(completion.result.diagnostic);
             continue;
         }
         if (completion.result.changedTempoBpm) {
@@ -492,7 +514,6 @@ void MainComponent::timerCallback()
             masterGain.store(juce::Decibels::decibelsToGain(static_cast<float>(volumeDb)),
                              std::memory_order_release);
         }
-        const auto command = juce::String(completion.source).trim();
         juce::StringArray commandLines;
         commandLines.addLines(juce::String(completion.source));
         bool globalStopRequested {};
@@ -514,20 +535,18 @@ void MainComponent::timerCallback()
         }
         if (! hasNonControlLine && globalStopRequested) {
             bassScheduler.clear();
-            diagnostics.setText(command == "panic()" ? "Panic: cleared instrument events" : "Silenced active players",
-                                juce::dontSendNotification);
+            showConsole(command == "panic()" ? "Panic: cleared instrument events" : "Silenced active players");
             continue;
         }
         if (! hasNonControlLine && ! stoppedPlayers.empty()) {
             for (const auto playerIndex : stoppedPlayers)
                 bassScheduler.remove(playerIndex);
-            diagnostics.setText("Silenced " + juce::String(static_cast<int>(stoppedPlayers.size()))
-                                    + (stoppedPlayers.size() == 1 ? " player" : " players"),
-                                juce::dontSendNotification);
+            showConsole("Silenced " + juce::String(static_cast<int>(stoppedPlayers.size()))
+                        + (stoppedPlayers.size() == 1 ? " player" : " players"));
             continue;
         }
         if (completion.source.find(">> n(") == std::string::npos) {
-            diagnostics.setText(completion.result.diagnostic, juce::dontSendNotification);
+            showConsole(completion.result.diagnostic);
             continue;
         }
 
@@ -544,7 +563,7 @@ void MainComponent::timerCallback()
                 continue;
             const auto validation = runtime.evaluateEditorText(patternSource, channels, readyChannelIds);
             if (! validation.accepted) {
-                diagnostics.setText(validation.diagnostic, juce::dontSendNotification);
+                showConsole(validation.diagnostic);
                 patterns.clear();
                 break;
             }
@@ -558,17 +577,17 @@ void MainComponent::timerCallback()
             const auto durationBeats = runtime.durationBeatsFromEditorText(patternSource);
             const auto velocity = runtime.velocityFromEditorText(patternSource);
             if (! playerIndex || ! periodBeats || ! durationBeats || ! velocity) {
-                diagnostics.setText("FP_PATTERN_VALUE_INVALID: player, p, dur, and velocity must be valid", juce::dontSendNotification);
+                showConsole("FP_PATTERN_VALUE_INVALID: player, p, dur, and velocity must be valid");
                 patterns.clear();
                 break;
             }
             if (! channel) {
-                diagnostics.setText("FP_TARGET_UNAVAILABLE: target has no ready instrument channel", juce::dontSendNotification);
+                showConsole("FP_TARGET_UNAVAILABLE: target has no ready instrument channel");
                 patterns.clear();
                 break;
             }
             if (noteSteps.empty()) {
-                diagnostics.setText("FP_PATTERN_VALUE_INVALID: notes must use C3 or {C3 E3 G3} chord groups", juce::dontSendNotification);
+                showConsole("FP_PATTERN_VALUE_INVALID: notes must use C3 or {C3 E3 G3} chord groups");
                 patterns.clear();
                 break;
             }
@@ -582,10 +601,9 @@ void MainComponent::timerCallback()
             scheduledPatterns.push_back({ pattern.playerIndex, pattern.channelId, std::move(pattern.noteSteps), pattern.periodBeats,
                                           static_cast<std::uint8_t>(pattern.velocity), pattern.durationBeats });
         bassScheduler.replaceAll(std::move(scheduledPatterns));
-        diagnostics.setText("Queued " + juce::String(static_cast<int>(patterns.size()))
-                                + (patterns.size() == 1 ? " instrument pattern for the next bar"
-                                                        : " instrument patterns for the next bar"),
-                            juce::dontSendNotification);
+        showConsole("Queued " + juce::String(static_cast<int>(patterns.size()))
+                    + (patterns.size() == 1 ? " instrument pattern for the next bar"
+                                            : " instrument patterns for the next bar"));
     }
 }
 

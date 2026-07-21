@@ -58,6 +58,18 @@ int main(int argc, char** argv)
             && ! invalidVolume.accepted
             && invalidVolume.diagnostic.find("FP_MASTER_VOLUME_INVALID") != std::string::npos ? 0 : 1;
     }
+    if (test == "console") {
+        const auto printed = runtime.evaluate("print('hello', 42)");
+        const auto appendEnabled = runtime.evaluate("console.append = True\nprint('next')");
+        const auto cleared = runtime.evaluate("console.clear()");
+        const auto invalidAppend = runtime.evaluate("console.append = 1");
+        return printed.accepted && printed.consoleOutput == "hello 42\n"
+            && appendEnabled.accepted && appendEnabled.changedConsoleAppend == std::optional<bool>(true)
+            && appendEnabled.consoleOutput == "next\n"
+            && cleared.accepted && cleared.consoleClearRequested && cleared.consoleOutput.empty()
+            && ! invalidAppend.accepted
+            && invalidAppend.diagnostic.find("FP_CONSOLE_APPEND_INVALID") != std::string::npos ? 0 : 1;
+    }
     if (test == "syntax-location") {
         const auto result = runtime.evaluate("tempo =\n");
         return ! result.accepted && result.diagnostic.find("line 1") != std::string::npos ? 0 : 1;

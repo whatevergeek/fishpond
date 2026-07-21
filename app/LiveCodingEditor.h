@@ -9,6 +9,8 @@ public:
         tokenType_comment,
         tokenType_keyword,
         tokenType_function,
+        tokenType_runtimeObject,
+        tokenType_runtimeMember,
         tokenType_player,
         tokenType_number,
         tokenType_string,

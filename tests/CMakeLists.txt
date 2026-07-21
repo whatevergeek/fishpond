@@ -171,6 +171,7 @@ if(TARGET fishpond_embedded_python)
     add_test(NAME UT_EmbeddedPythonTargetRequired COMMAND fishpond_p1_embedded_python target-required)
     add_test(NAME UT_EmbeddedPythonClockState COMMAND fishpond_p1_embedded_python clock-state)
     add_test(NAME UT_EmbeddedPythonMasterVolume COMMAND fishpond_p1_embedded_python master-volume)
+    add_test(NAME UT_EmbeddedPythonConsole COMMAND fishpond_p1_embedded_python console)
     add_test(NAME IT_EmbeddedPythonSyntaxLocation COMMAND fishpond_p1_embedded_python syntax-location)
     add_test(NAME IT_PythonExecutionWorkerOffCallerThread COMMAND fishpond_p1_python_worker)
     set_tests_properties(IT_EmbeddedPythonPersistentNamespace IT_EmbeddedPythonErrorIsolation

@@ -59,6 +59,66 @@ std::optional<double> masterVolume(PyObject* globals)
     Py_DECREF(volume);
     return valid ? std::optional<double>(value) : std::nullopt;
 }
+
+std::optional<bool> consoleAppend(PyObject* globals)
+{
+    auto* console = PyDict_GetItemString(globals, "console");
+    if (console == nullptr)
+        return std::nullopt;
+    auto* append = PyObject_GetAttrString(console, "append");
+    if (append == nullptr) {
+        PyErr_Clear();
+        return std::nullopt;
+    }
+    const auto value = PyObject_IsTrue(append);
+    const auto valid = value >= 0;
+    PyErr_Clear();
+    Py_DECREF(append);
+    return valid ? std::optional<bool>(value != 0) : std::nullopt;
+}
+
+bool consoleClearRequested(PyObject* globals)
+{
+    auto* console = PyDict_GetItemString(globals, "console");
+    if (console == nullptr)
+        return false;
+    auto* requested = PyObject_GetAttrString(console, "_clear_requested");
+    if (requested == nullptr) {
+        PyErr_Clear();
+        return false;
+    }
+    const auto value = PyObject_IsTrue(requested);
+    PyErr_Clear();
+    Py_DECREF(requested);
+    return value > 0;
+}
+
+std::string consoleOutput(PyObject* globals)
+{
+    auto* console = PyDict_GetItemString(globals, "console");
+    if (console == nullptr)
+        return {};
+    auto* output = PyObject_CallMethod(console, "_take_output", nullptr);
+    if (output == nullptr) {
+        PyErr_Clear();
+        return {};
+    }
+    const auto* utf8 = PyUnicode_Check(output) ? PyUnicode_AsUTF8(output) : nullptr;
+    std::string result = utf8 != nullptr ? utf8 : "";
+    PyErr_Clear();
+    Py_DECREF(output);
+    return result;
+}
+
+void beginConsoleEvaluation(PyObject* globals)
+{
+    auto* console = PyDict_GetItemString(globals, "console");
+    if (console == nullptr)
+        return;
+    auto* result = PyObject_CallMethod(console, "_begin_evaluation", nullptr);
+    Py_XDECREF(result);
+    PyErr_Clear();
+}
 }
 
 EmbeddedPythonRuntime::EmbeddedPythonRuntime()
@@ -131,6 +191,36 @@ EmbeddedPythonRuntime::EmbeddedPythonRuntime()
             "            raise ValueError('FP_MASTER_VOLUME_INVALID: volume must be between -60 and 0 dB')\n"
             "        self._volume = float(value)\n"
             "master = _FishpondMaster()\n"
+            "class _FishpondConsole:\n"
+            "    def __init__(self):\n"
+            "        self._append = False\n"
+            "        self._clear_requested = False\n"
+            "        self._output = []\n"
+            "    @property\n"
+            "    def append(self):\n"
+            "        return self._append\n"
+            "    @append.setter\n"
+            "    def append(self, value):\n"
+            "        if not isinstance(value, bool):\n"
+            "            raise TypeError('FP_CONSOLE_APPEND_INVALID: append must be True or False')\n"
+            "        self._append = value\n"
+            "    def clear(self):\n"
+            "        self._clear_requested = True\n"
+            "    def _begin_evaluation(self):\n"
+            "        self._clear_requested = False\n"
+            "        self._output.clear()\n"
+            "    def _write(self, text):\n"
+            "        self._output.append(str(text))\n"
+            "    def _take_output(self):\n"
+            "        output = ''.join(self._output)\n"
+            "        self._output.clear()\n"
+            "        return output\n"
+            "console = _FishpondConsole()\n"
+            "def _fishpond_print(*values, sep=' ', end='\\n', file=None, flush=False):\n"
+            "    if not isinstance(sep, str) or not isinstance(end, str):\n"
+            "        raise TypeError('sep and end must be strings')\n"
+            "    console._write(sep.join(str(value) for value in values) + end)\n"
+            "print = _fishpond_print\n"
             "class _FishpondPattern:\n"
             "    def __init__(self, notes, target, keywords):\n"
             "        self.notes = notes\n"
@@ -191,19 +281,30 @@ PythonEvaluationResult EmbeddedPythonRuntime::evaluate(const std::string& source
     const auto state = PyGILState_Ensure();
     const auto priorTempo = clockTempo(static_cast<PyObject*>(globals));
     const auto priorMasterVolume = masterVolume(static_cast<PyObject*>(globals));
+    const auto priorConsoleAppend = consoleAppend(static_cast<PyObject*>(globals));
+    beginConsoleEvaluation(static_cast<PyObject*>(globals));
     PyObject* result = PyRun_StringFlags(source.c_str(), Py_file_input,
                                          static_cast<PyObject*>(globals), static_cast<PyObject*>(globals), nullptr);
     if (result == nullptr) {
         diagnostic = pythonError();
+        const auto currentConsoleAppend = consoleAppend(static_cast<PyObject*>(globals));
+        const auto clearRequested = consoleClearRequested(static_cast<PyObject*>(globals));
+        const auto output = consoleOutput(static_cast<PyObject*>(globals));
         PyGILState_Release(state);
-        return { false, diagnostic };
+        return { false, diagnostic, {}, {}, currentConsoleAppend != priorConsoleAppend ? currentConsoleAppend : std::nullopt,
+                 clearRequested, output };
     }
     Py_DECREF(result);
     const auto currentTempo = clockTempo(static_cast<PyObject*>(globals));
     const auto currentMasterVolume = masterVolume(static_cast<PyObject*>(globals));
+    const auto currentConsoleAppend = consoleAppend(static_cast<PyObject*>(globals));
+    const auto clearRequested = consoleClearRequested(static_cast<PyObject*>(globals));
+    const auto output = consoleOutput(static_cast<PyObject*>(globals));
     PyGILState_Release(state);
     diagnostic.clear();
     return { true, "Executed", currentTempo != priorTempo ? currentTempo : std::nullopt,
-             currentMasterVolume != priorMasterVolume ? currentMasterVolume : std::nullopt };
+             currentMasterVolume != priorMasterVolume ? currentMasterVolume : std::nullopt,
+             currentConsoleAppend != priorConsoleAppend ? currentConsoleAppend : std::nullopt,
+             clearRequested, output };
 }
 }

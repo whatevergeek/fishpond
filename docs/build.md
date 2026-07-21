@@ -140,6 +140,24 @@ stereo mix from `-60 dB` to `0 dB`; double-click it to return to unity gain
 `master.volume = -12`; valid values are from `-60 dB` to `0 dB`, and a
 successful code evaluation updates the fader immediately.
 
+## Console output and Python learning
+
+Fishpond captures normal Python `print()` output in the lower Console pane, as
+Sardine Web does for its learning examples. By default each evaluation replaces
+the previous console content, keeping the immediate result easy to read:
+
+```python
+print("hello")
+print(clock.bpm)
+```
+
+For a running transcript, evaluate `console.append = True`. Later evaluations
+then append to the Console and it scrolls to the newest output; its vertical
+scrollbar appears only when the content needs it. Use normal Python booleans
+(`True` and `False`), not lowercase JavaScript-style values. Reset the default
+replace behaviour with `console.append = False`, and clear the Console at any
+time with `console.clear()`.
+
 Fishpond opens as a normal, resizable `1280 x 800` desktop window. Use the
 platform's native zoom/maximise control to enlarge it, or choose **View > Enter
 Full Screen** (`Cmd+Ctrl+F` on macOS) for a focused performance workspace.
