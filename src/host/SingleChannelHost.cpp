@@ -9,6 +9,11 @@ bool SingleChannelHost::prepareInstrument(std::unique_ptr<juce::AudioProcessor> 
         return false;
     }
 
+    // Some VST3 instruments expose their default output bus as disabled until
+    // the host explicitly enables it. Enable the plug-in's own default buses
+    // before inspecting or negotiating a layout; do not force a speaker layout
+    // that the plug-in has declined to support.
+    processor->enableAllBuses();
     auto layout = processor->getBusesLayout();
     if (layout.outputBuses.isEmpty()) {
         diagnostic = "FP_INSTRUMENT_LAYOUT: instrument has no main output bus";
