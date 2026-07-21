@@ -152,6 +152,13 @@ print("hello")
 print(clock.bpm)
 ```
 
+The Live Coding editor recognises common Python lexical forms: the complete
+keyword set, decorators, normal/raw/bytes/f-string prefixes, triple-quoted
+strings, decimal/base-prefixed/exponent/imaginary numbers, and names used as
+function calls. Fishpond objects and players retain their dedicated colours.
+This is editor feedback, not a Python parser or linter: code is still validated
+when you evaluate it.
+
 The Console has a vertical scrollbar when that one evaluation produces more
 text than fits in the pane. Evaluating the next line or selected block replaces
 its output. To blank the pane without evaluating code, use **View > Clear

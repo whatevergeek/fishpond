@@ -9,6 +9,7 @@ public:
     enum TokenType {
         tokenType_error = 0,
         tokenType_comment,
+        tokenType_decorator,
         tokenType_keyword,
         tokenType_function,
         tokenType_runtimeObject,

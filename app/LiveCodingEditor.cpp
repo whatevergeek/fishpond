@@ -8,10 +8,11 @@ bool isIdentifierCharacter(juce::juce_wchar character)
 
 bool isKeyword(const juce::String& word)
 {
-    static const juce::StringArray keywords { "and", "as", "async", "await", "break", "class", "continue",
-                                               "def", "elif", "else", "except", "False", "finally", "for",
-                                               "from", "if", "import", "in", "is", "lambda", "None", "not", "or",
-                                               "pass", "return", "True", "try", "while", "with", "yield" };
+    static const juce::StringArray keywords { "False", "None", "True", "and", "as", "assert", "async",
+                                               "await", "break", "case", "class", "continue", "def", "del",
+                                               "elif", "else", "except", "finally", "for", "from", "global", "if",
+                                               "import", "in", "is", "lambda", "match", "nonlocal", "not", "or",
+                                               "pass", "raise", "return", "try", "while", "with", "yield" };
     return keywords.contains(word);
 }
 
@@ -32,6 +33,124 @@ bool isRuntimeMember(const juce::String& word)
     static const juce::StringArray members { "bpm", "tempo", "volume" };
     return members.contains(word);
 }
+
+bool isStringPrefixCharacter(juce::juce_wchar character)
+{
+    return character == 'r' || character == 'R' || character == 'b' || character == 'B'
+        || character == 'u' || character == 'U' || character == 'f' || character == 'F';
+}
+
+bool looksLikePythonString(juce::CodeDocument::Iterator source)
+{
+    const auto first = source.peekNextChar();
+    if (first == '\'' || first == '"')
+        return true;
+    if (! isStringPrefixCharacter(first))
+        return false;
+
+    auto prefixLength = 0;
+    while (prefixLength < 3 && isStringPrefixCharacter(source.peekNextChar())) {
+        source.skip();
+        ++prefixLength;
+    }
+
+    const auto quote = source.peekNextChar();
+    return quote == '\'' || quote == '"';
+}
+
+void consumePythonString(juce::CodeDocument::Iterator& source)
+{
+    auto quote = source.nextChar();
+    if (isStringPrefixCharacter(quote)) {
+        auto prefixLength = 1;
+        while (prefixLength < 3 && isStringPrefixCharacter(source.peekNextChar())) {
+            source.skip();
+            ++prefixLength;
+        }
+        quote = source.nextChar();
+    }
+
+    auto quoteProbe = source;
+    const auto tripleQuoted = quoteProbe.peekNextChar() == quote
+                           && (quoteProbe.skip(), quoteProbe.peekNextChar() == quote);
+    if (tripleQuoted) {
+        source.skip();
+        if (source.peekNextChar() == quote)
+            source.skip();
+    }
+
+    while (! source.isEOF()) {
+        const auto character = source.nextChar();
+        if (character == '\\' && ! source.isEOF()) {
+            source.skip();
+            continue;
+        }
+        if (character != quote)
+            continue;
+        if (! tripleQuoted)
+            break;
+        if (source.peekNextChar() != quote)
+            continue;
+        source.skip();
+        if (source.peekNextChar() == quote) {
+            source.skip();
+            break;
+        }
+    }
+}
+
+void consumePythonNumber(juce::CodeDocument::Iterator& source)
+{
+    const auto first = source.peekNextChar();
+    if (first == '.') {
+        source.skip();
+        while (juce::CharacterFunctions::isDigit(source.peekNextChar()) || source.peekNextChar() == '_')
+            source.skip();
+    } else {
+        source.skip();
+        if (first == '0' && (source.peekNextChar() == 'x' || source.peekNextChar() == 'X'
+                             || source.peekNextChar() == 'o' || source.peekNextChar() == 'O'
+                             || source.peekNextChar() == 'b' || source.peekNextChar() == 'B')) {
+            source.skip();
+            while (juce::CharacterFunctions::isLetterOrDigit(source.peekNextChar()) || source.peekNextChar() == '_')
+                source.skip();
+            return;
+        }
+        while (juce::CharacterFunctions::isDigit(source.peekNextChar()) || source.peekNextChar() == '_')
+            source.skip();
+        if (source.peekNextChar() == '.') {
+            source.skip();
+            while (juce::CharacterFunctions::isDigit(source.peekNextChar()) || source.peekNextChar() == '_')
+                source.skip();
+        }
+    }
+
+    if (source.peekNextChar() == 'e' || source.peekNextChar() == 'E') {
+        source.skip();
+        if (source.peekNextChar() == '+' || source.peekNextChar() == '-')
+            source.skip();
+        while (juce::CharacterFunctions::isDigit(source.peekNextChar()) || source.peekNextChar() == '_')
+            source.skip();
+    }
+    if (source.peekNextChar() == 'j' || source.peekNextChar() == 'J')
+        source.skip();
+}
+
+bool isFunctionCall(juce::CodeDocument::Iterator source)
+{
+    source.skipWhitespace();
+    return source.peekNextChar() == '(';
+}
+
+bool startsPythonNumber(juce::CodeDocument::Iterator source)
+{
+    if (juce::CharacterFunctions::isDigit(source.peekNextChar()))
+        return true;
+    if (source.peekNextChar() != '.')
+        return false;
+    source.skip();
+    return juce::CharacterFunctions::isDigit(source.peekNextChar());
+}
 }
 
 int FishpondCodeTokeniser::readNextToken(juce::CodeDocument::Iterator& source)
@@ -47,25 +166,23 @@ int FishpondCodeTokeniser::readNextToken(juce::CodeDocument::Iterator& source)
         return tokenType_comment;
     }
 
-    if (firstCharacter == '\'' || firstCharacter == '"') {
-        const auto quote = source.nextChar();
-        while (! source.isEOF()) {
-            const auto character = source.nextChar();
-            if (character == '\\' && ! source.isEOF())
-                source.skip();
-            else if (character == quote)
-                break;
-        }
+    if (looksLikePythonString(source)) {
+        consumePythonString(source);
         return tokenType_string;
     }
 
-    if (juce::CharacterFunctions::isDigit(firstCharacter)) {
-        while (juce::CharacterFunctions::isDigit(source.peekNextChar()) || source.peekNextChar() == '.')
-            source.skip();
+    if (startsPythonNumber(source)) {
+        consumePythonNumber(source);
         return tokenType_number;
     }
 
+    if (firstCharacter == '@') {
+        source.skip();
+        return tokenType_decorator;
+    }
+
     if (juce::CharacterFunctions::isLetter(firstCharacter) || firstCharacter == '_') {
+        const auto followsDecorator = source.peekPreviousChar() == '@';
         juce::String word;
         while (isIdentifierCharacter(source.peekNextChar()))
             word += source.nextChar();
@@ -80,6 +197,8 @@ int FishpondCodeTokeniser::readNextToken(juce::CodeDocument::Iterator& source)
             return tokenType_runtimeMember;
         if (word.length() == 2 && word[0] == 'P' && word[1] >= 'a' && word[1] <= 'z')
             return tokenType_player;
+        if (followsDecorator || isFunctionCall(source))
+            return tokenType_function;
         return tokenType_identifier;
     }
 
@@ -97,6 +216,7 @@ juce::CodeEditorComponent::ColourScheme FishpondCodeTokeniser::getDefaultColourS
     juce::CodeEditorComponent::ColourScheme scheme;
     scheme.set("Error", juce::Colour(0xffe06c75));
     scheme.set("Comment", juce::Colour(0xff7d8799));
+    scheme.set("Decorator", juce::Colour(0xffc678dd));
     scheme.set("Keyword", juce::Colour(0xffc678dd));
     scheme.set("Function", juce::Colour(0xff61afef));
     scheme.set("RuntimeObject", juce::Colour(0xff56b6c2));
