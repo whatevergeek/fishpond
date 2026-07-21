@@ -153,8 +153,8 @@ print(clock.bpm)
 ```
 
 The Console has a vertical scrollbar when that one evaluation produces more
-text than fits in the pane, and it disappears once cleared. Clear the Console
-at any time with `console.clear()`.
+text than fits in the pane. No console-specific control API is needed: simply
+evaluate the next line or selected block to replace its output.
 
 Fishpond opens as a normal, resizable `1280 x 800` desktop window. Use the
 platform's native zoom/maximise control to enlarge it, or choose **View > Enter

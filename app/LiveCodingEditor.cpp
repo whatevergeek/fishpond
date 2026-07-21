@@ -23,13 +23,13 @@ bool isFunction(const juce::String& word)
 
 bool isRuntimeObject(const juce::String& word)
 {
-    static const juce::StringArray objects { "clock", "master", "console" };
+    static const juce::StringArray objects { "clock", "master" };
     return objects.contains(word);
 }
 
 bool isRuntimeMember(const juce::String& word)
 {
-    static const juce::StringArray members { "bpm", "tempo", "volume", "append", "clear" };
+    static const juce::StringArray members { "bpm", "tempo", "volume" };
     return members.contains(word);
 }
 }

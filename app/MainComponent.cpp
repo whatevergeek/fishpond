@@ -480,15 +480,9 @@ void MainComponent::timerCallback()
         const auto command = juce::String(completion.source).trim();
 
         const auto showConsole = [this, &completion] (juce::String fallback) {
-            if (completion.result.consoleClearRequested)
-                diagnostics.clear();
-
             auto output = juce::String(completion.result.consoleOutput);
-            if (output.isEmpty()) {
-                if (completion.result.consoleClearRequested)
-                    return;
+            if (output.isEmpty())
                 output = std::move(fallback);
-            }
 
             diagnostics.setText(output, juce::dontSendNotification);
             diagnostics.moveCaretToEnd(false);

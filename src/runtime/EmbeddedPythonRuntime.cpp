@@ -60,28 +60,14 @@ std::optional<double> masterVolume(PyObject* globals)
     return valid ? std::optional<double>(value) : std::nullopt;
 }
 
-bool consoleClearRequested(PyObject* globals)
-{
-    auto* console = PyDict_GetItemString(globals, "console");
-    if (console == nullptr)
-        return false;
-    auto* requested = PyObject_GetAttrString(console, "_clear_requested");
-    if (requested == nullptr) {
-        PyErr_Clear();
-        return false;
-    }
-    const auto value = PyObject_IsTrue(requested);
-    PyErr_Clear();
-    Py_DECREF(requested);
-    return value > 0;
-}
-
 std::string consoleOutput(PyObject* globals)
 {
-    auto* console = PyDict_GetItemString(globals, "console");
-    if (console == nullptr)
+    auto* outputBuffer = PyDict_GetItemString(globals, "_fishpond_console_output");
+    if (outputBuffer == nullptr)
         return {};
-    auto* output = PyObject_CallMethod(console, "_take_output", nullptr);
+    auto* separator = PyUnicode_FromString("");
+    auto* output = separator != nullptr ? PyUnicode_Join(separator, outputBuffer) : nullptr;
+    Py_XDECREF(separator);
     if (output == nullptr) {
         PyErr_Clear();
         return {};
@@ -95,11 +81,10 @@ std::string consoleOutput(PyObject* globals)
 
 void beginConsoleEvaluation(PyObject* globals)
 {
-    auto* console = PyDict_GetItemString(globals, "console");
-    if (console == nullptr)
+    auto* outputBuffer = PyDict_GetItemString(globals, "_fishpond_console_output");
+    if (outputBuffer == nullptr || ! PyList_Check(outputBuffer))
         return;
-    auto* result = PyObject_CallMethod(console, "_begin_evaluation", nullptr);
-    Py_XDECREF(result);
+    PyList_SetSlice(outputBuffer, 0, PyList_Size(outputBuffer), nullptr);
     PyErr_Clear();
 }
 }
@@ -174,26 +159,11 @@ EmbeddedPythonRuntime::EmbeddedPythonRuntime()
             "            raise ValueError('FP_MASTER_VOLUME_INVALID: volume must be between -60 and 0 dB')\n"
             "        self._volume = float(value)\n"
             "master = _FishpondMaster()\n"
-            "class _FishpondConsole:\n"
-            "    def __init__(self):\n"
-            "        self._clear_requested = False\n"
-            "        self._output = []\n"
-            "    def clear(self):\n"
-            "        self._clear_requested = True\n"
-            "    def _begin_evaluation(self):\n"
-            "        self._clear_requested = False\n"
-            "        self._output.clear()\n"
-            "    def _write(self, text):\n"
-            "        self._output.append(str(text))\n"
-            "    def _take_output(self):\n"
-            "        output = ''.join(self._output)\n"
-            "        self._output.clear()\n"
-            "        return output\n"
-            "console = _FishpondConsole()\n"
+            "_fishpond_console_output = []\n"
             "def _fishpond_print(*values, sep=' ', end='\\n', file=None, flush=False):\n"
             "    if not isinstance(sep, str) or not isinstance(end, str):\n"
             "        raise TypeError('sep and end must be strings')\n"
-            "    console._write(sep.join(str(value) for value in values) + end)\n"
+            "    _fishpond_console_output.append(sep.join(str(value) for value in values) + end)\n"
             "print = _fishpond_print\n"
             "class _FishpondPattern:\n"
             "    def __init__(self, notes, target, keywords):\n"
@@ -260,20 +230,18 @@ PythonEvaluationResult EmbeddedPythonRuntime::evaluate(const std::string& source
                                          static_cast<PyObject*>(globals), static_cast<PyObject*>(globals), nullptr);
     if (result == nullptr) {
         diagnostic = pythonError();
-        const auto clearRequested = consoleClearRequested(static_cast<PyObject*>(globals));
         const auto output = consoleOutput(static_cast<PyObject*>(globals));
         PyGILState_Release(state);
-        return { false, diagnostic, {}, {}, clearRequested, output };
+        return { false, diagnostic, {}, {}, output };
     }
     Py_DECREF(result);
     const auto currentTempo = clockTempo(static_cast<PyObject*>(globals));
     const auto currentMasterVolume = masterVolume(static_cast<PyObject*>(globals));
-    const auto clearRequested = consoleClearRequested(static_cast<PyObject*>(globals));
     const auto output = consoleOutput(static_cast<PyObject*>(globals));
     PyGILState_Release(state);
     diagnostic.clear();
     return { true, "Executed", currentTempo != priorTempo ? currentTempo : std::nullopt,
              currentMasterVolume != priorMasterVolume ? currentMasterVolume : std::nullopt,
-             clearRequested, output };
+             output };
 }
 }

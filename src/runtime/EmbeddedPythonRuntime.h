@@ -9,7 +9,6 @@ struct PythonEvaluationResult {
     std::string diagnostic;
     std::optional<double> changedTempoBpm;
     std::optional<double> changedMasterVolumeDb;
-    bool consoleClearRequested {};
     std::string consoleOutput;
 };
 

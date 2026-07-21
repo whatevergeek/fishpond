@@ -60,9 +60,7 @@ int main(int argc, char** argv)
     }
     if (test == "console") {
         const auto printed = runtime.evaluate("print('hello', 42)");
-        const auto cleared = runtime.evaluate("console.clear()");
         return printed.accepted && printed.consoleOutput == "hello 42\n"
-            && cleared.accepted && cleared.consoleClearRequested && cleared.consoleOutput.empty()
             ? 0 : 1;
     }
     if (test == "syntax-location") {
