@@ -105,7 +105,7 @@ private:
     juce::Label instrumentsPanel;
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
-    juce::Label tempoLabel { {}, "clock.tempo = 120" };
+    juce::Label tempoLabel { {}, "clock.bpm = 120" };
     juce::Label masterVolumeLabel { {}, "Master volume" };
     juce::Slider masterVolumeSlider;
 };

@@ -482,7 +482,7 @@ void MainComponent::timerCallback()
         }
         if (completion.result.changedTempoBpm) {
             tempoBpm = *completion.result.changedTempoBpm;
-            tempoLabel.setText("clock.tempo = " + juce::String(tempoBpm, 0),
+            tempoLabel.setText("clock.bpm = " + juce::String(tempoBpm, 0),
                                juce::dontSendNotification);
             updateSchedulerTiming();
         }
