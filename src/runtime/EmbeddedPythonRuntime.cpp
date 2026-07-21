@@ -60,23 +60,6 @@ std::optional<double> masterVolume(PyObject* globals)
     return valid ? std::optional<double>(value) : std::nullopt;
 }
 
-std::optional<bool> consoleAppend(PyObject* globals)
-{
-    auto* console = PyDict_GetItemString(globals, "console");
-    if (console == nullptr)
-        return std::nullopt;
-    auto* append = PyObject_GetAttrString(console, "append");
-    if (append == nullptr) {
-        PyErr_Clear();
-        return std::nullopt;
-    }
-    const auto value = PyObject_IsTrue(append);
-    const auto valid = value >= 0;
-    PyErr_Clear();
-    Py_DECREF(append);
-    return valid ? std::optional<bool>(value != 0) : std::nullopt;
-}
-
 bool consoleClearRequested(PyObject* globals)
 {
     auto* console = PyDict_GetItemString(globals, "console");
@@ -193,17 +176,8 @@ EmbeddedPythonRuntime::EmbeddedPythonRuntime()
             "master = _FishpondMaster()\n"
             "class _FishpondConsole:\n"
             "    def __init__(self):\n"
-            "        self._append = False\n"
             "        self._clear_requested = False\n"
             "        self._output = []\n"
-            "    @property\n"
-            "    def append(self):\n"
-            "        return self._append\n"
-            "    @append.setter\n"
-            "    def append(self, value):\n"
-            "        if not isinstance(value, bool):\n"
-            "            raise TypeError('FP_CONSOLE_APPEND_INVALID: append must be True or False')\n"
-            "        self._append = value\n"
             "    def clear(self):\n"
             "        self._clear_requested = True\n"
             "    def _begin_evaluation(self):\n"
@@ -281,30 +255,25 @@ PythonEvaluationResult EmbeddedPythonRuntime::evaluate(const std::string& source
     const auto state = PyGILState_Ensure();
     const auto priorTempo = clockTempo(static_cast<PyObject*>(globals));
     const auto priorMasterVolume = masterVolume(static_cast<PyObject*>(globals));
-    const auto priorConsoleAppend = consoleAppend(static_cast<PyObject*>(globals));
     beginConsoleEvaluation(static_cast<PyObject*>(globals));
     PyObject* result = PyRun_StringFlags(source.c_str(), Py_file_input,
                                          static_cast<PyObject*>(globals), static_cast<PyObject*>(globals), nullptr);
     if (result == nullptr) {
         diagnostic = pythonError();
-        const auto currentConsoleAppend = consoleAppend(static_cast<PyObject*>(globals));
         const auto clearRequested = consoleClearRequested(static_cast<PyObject*>(globals));
         const auto output = consoleOutput(static_cast<PyObject*>(globals));
         PyGILState_Release(state);
-        return { false, diagnostic, {}, {}, currentConsoleAppend != priorConsoleAppend ? currentConsoleAppend : std::nullopt,
-                 clearRequested, output };
+        return { false, diagnostic, {}, {}, clearRequested, output };
     }
     Py_DECREF(result);
     const auto currentTempo = clockTempo(static_cast<PyObject*>(globals));
     const auto currentMasterVolume = masterVolume(static_cast<PyObject*>(globals));
-    const auto currentConsoleAppend = consoleAppend(static_cast<PyObject*>(globals));
     const auto clearRequested = consoleClearRequested(static_cast<PyObject*>(globals));
     const auto output = consoleOutput(static_cast<PyObject*>(globals));
     PyGILState_Release(state);
     diagnostic.clear();
     return { true, "Executed", currentTempo != priorTempo ? currentTempo : std::nullopt,
              currentMasterVolume != priorMasterVolume ? currentMasterVolume : std::nullopt,
-             currentConsoleAppend != priorConsoleAppend ? currentConsoleAppend : std::nullopt,
              clearRequested, output };
 }
 }

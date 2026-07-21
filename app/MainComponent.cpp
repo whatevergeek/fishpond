@@ -478,8 +478,6 @@ void MainComponent::timerCallback()
     fishpond::PythonExecutionCompletion completion;
     while (pythonWorker.tryTakeCompletion(completion)) {
         const auto command = juce::String(completion.source).trim();
-        if (completion.result.changedConsoleAppend)
-            consoleAppend = *completion.result.changedConsoleAppend;
 
         const auto showConsole = [this, &completion] (juce::String fallback) {
             if (completion.result.consoleClearRequested)
@@ -492,8 +490,6 @@ void MainComponent::timerCallback()
                 output = std::move(fallback);
             }
 
-            if (consoleAppend && ! diagnostics.getText().isEmpty())
-                output = diagnostics.getText() + "\n" + output;
             diagnostics.setText(output, juce::dontSendNotification);
             diagnostics.moveCaretToEnd(false);
         };

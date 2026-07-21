@@ -86,7 +86,6 @@ private:
     std::atomic<std::uint32_t> activeBlockSize { 512 };
     std::atomic<float> masterGain { 1.0f };
     double tempoBpm { 120.0 };
-    bool consoleAppend {};
     // Even values are stable snapshots; an odd value means device configuration is changing.
     std::atomic<std::uint64_t> audioConfigurationVersion { 2 };
     std::uint64_t observedPanic {};
