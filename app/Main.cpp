@@ -41,6 +41,7 @@ private:
             openFile,
             saveFile,
             saveFileAs,
+            clearOutput,
             toggleFullScreen
         };
 
@@ -50,6 +51,12 @@ private:
         {
             juce::PopupMenu menu;
             if (menuIndex == 1) {
+                juce::PopupMenu::Item clearItem("Clear Output");
+                clearItem.itemID = clearOutput;
+                clearItem.shortcutKeyDescription = juce::KeyPress('k', juce::ModifierKeys::commandModifier, 0)
+                                                       .getTextDescriptionWithIcons();
+                menu.addItem(std::move(clearItem));
+                menu.addSeparator();
                 juce::PopupMenu::Item item(isFullScreen() ? "Exit Full Screen" : "Enter Full Screen");
                 item.itemID = toggleFullScreen;
                 item.shortcutKeyDescription = juce::KeyPress('f', juce::ModifierKeys::commandModifier
@@ -91,6 +98,7 @@ private:
                 case openFile: editor->openLiveCodingFile(); break;
                 case saveFile: editor->saveLiveCodingFile(); break;
                 case saveFileAs: editor->saveLiveCodingFileAs(); break;
+                case clearOutput: editor->clearOutput(); break;
                 default: break;
             }
         }

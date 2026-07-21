@@ -396,6 +396,11 @@ void MainComponent::saveLiveCodingFileAs()
         });
 }
 
+void MainComponent::clearOutput()
+{
+    diagnostics.setText({}, juce::dontSendNotification);
+}
+
 void MainComponent::loadLiveCodingFile(const juce::File& file)
 {
     auto stream = file.createInputStream();
@@ -634,6 +639,10 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origi
                 saveLiveCodingFileAs();
             else
                 saveLiveCodingFile();
+            return true;
+        }
+        if (character == 'k') {
+            clearOutput();
             return true;
         }
     }

@@ -153,8 +153,10 @@ print(clock.bpm)
 ```
 
 The Console has a vertical scrollbar when that one evaluation produces more
-text than fits in the pane. No console-specific control API is needed: simply
-evaluate the next line or selected block to replace its output.
+text than fits in the pane. Evaluating the next line or selected block replaces
+its output. To blank the pane without evaluating code, use **View > Clear
+Output** (`Cmd+K` on macOS; `Ctrl+K` on Windows/Linux). This is deliberately a
+Fishpond UI command, not an `os.system()` or console-specific Python API.
 
 Fishpond opens as a normal, resizable `1280 x 800` desktop window. Use the
 platform's native zoom/maximise control to enlarge it, or choose **View > Enter

@@ -31,6 +31,7 @@ public:
     void openLiveCodingFile();
     void saveLiveCodingFile();
     void saveLiveCodingFileAs();
+    void clearOutput();
 
 private:
     static constexpr std::size_t instrumentSlotCount = 4;
