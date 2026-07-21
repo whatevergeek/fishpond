@@ -2,6 +2,8 @@
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
+#include <functional>
+
 class FishpondCodeTokeniser final : public juce::CodeTokeniser {
 public:
     enum TokenType {
@@ -30,10 +32,13 @@ public:
     LiveCodingEditor(juce::CodeDocument& document, juce::CodeTokeniser& tokeniser);
 
     void flashRange(juce::Range<int> range);
+    void setClearOutputHandler(std::function<void()> handler);
 
 private:
+    bool keyPressed(const juce::KeyPress& key) override;
     void paintOverChildren(juce::Graphics& graphics) override;
     void timerCallback() override;
 
     juce::Range<int> flashingRange;
+    std::function<void()> clearOutputHandler;
 };

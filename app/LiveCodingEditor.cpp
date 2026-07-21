@@ -136,6 +136,22 @@ void LiveCodingEditor::flashRange(juce::Range<int> range)
     startTimer(200);
 }
 
+void LiveCodingEditor::setClearOutputHandler(std::function<void()> handler)
+{
+    clearOutputHandler = std::move(handler);
+}
+
+bool LiveCodingEditor::keyPressed(const juce::KeyPress& key)
+{
+    const auto character = juce::CharacterFunctions::toLowerCase(static_cast<juce::juce_wchar>(key.getKeyCode()));
+    if (key.getModifiers().isCommandDown() && character == 'k' && clearOutputHandler != nullptr) {
+        clearOutputHandler();
+        return true;
+    }
+
+    return juce::CodeEditorComponent::keyPressed(key);
+}
+
 void LiveCodingEditor::paintOverChildren(juce::Graphics& graphics)
 {
     if (flashingRange.isEmpty())

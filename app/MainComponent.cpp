@@ -69,6 +69,7 @@ MainComponent::MainComponent()
                                  "Pa >> n(\"{C2 E2 G2}\", target=\"instrument_01\", p=0.5)\n");
     liveCodingDocument.setSavePoint();
     liveCodingEditor.addKeyListener(this);
+    liveCodingEditor.setClearOutputHandler([this] { clearOutput(); });
     diagnostics.setMultiLine(true);
     diagnostics.setReadOnly(true);
     diagnostics.setScrollbarsShown(true);
@@ -639,10 +640,6 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origi
                 saveLiveCodingFileAs();
             else
                 saveLiveCodingFile();
-            return true;
-        }
-        if (character == 'k') {
-            clearOutput();
             return true;
         }
     }
