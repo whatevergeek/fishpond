@@ -37,7 +37,10 @@ juce::String requestInstructions(const AssistantSessionContext& context)
            "Playback snapshot:\n" + context.playbackContext + "\n"
            "For 'this', use the selected text, or the cursor line if nothing is selected. "
            "For accompaniment use active scheduler patterns, not unevaluated editor text. "
-           "Preserve other active players unless asked to change them. Queued patterns are not active yet. "
+           "Preserve other active players by omitting them from the snippet, not by reassigning them. "
+           "Return only the requested changed patterns, not a copy of the entire editor. "
+           "Do not copy silence() or panic() from context into a musical suggestion unless the user requests a stop. "
+           "Queued patterns are not active yet. "
            "The current Live Coding buffer is:\n```python\n" + context.liveCode + "\n```\n"
            "The most recent evaluator output is:\n```text\n" + context.diagnostics + "\n```\n"
            "If the musician asks for help fixing code, use that buffer and diagnostic to return the smallest useful corrected snippet. "
@@ -146,31 +149,48 @@ juce::String reviewFishpondCode(const juce::String& code)
     if (! looksLikeFishpondCode(code))
         return "response does not contain a supported Fishpond statement";
 
-    int parentheses = 0;
-    int braces = 0;
+    std::vector<std::pair<juce::juce_wchar, int>> delimiters;
     juce::juce_wchar quote {};
-    bool escaped {};
+    bool escaped = false, comment = false;
+    int line = 1, quoteLine = 1;
+    juce::String statements;
     for (const auto character : code) {
+        if (comment) {
+            if (character == '\n') { comment = false; ++line; statements += "\n"; }
+            else statements += " ";
+            continue;
+        }
         if (quote != 0) {
+            statements += " ";
+            if (character == '\n') ++line;
             if (escaped) { escaped = false; continue; }
             if (character == '\\') { escaped = true; continue; }
             if (character == quote) quote = 0;
             continue;
         }
-        if (character == '\'' || character == '"') { quote = character; continue; }
-        if (character == '(') ++parentheses;
-        if (character == ')') --parentheses;
-        if (character == '{') ++braces;
-        if (character == '}') --braces;
-        if (parentheses < 0 || braces < 0)
-            return "response has an unmatched closing delimiter";
+        if (character == '#') { comment = true; statements += " "; continue; }
+        if (character == '\'' || character == '"') {
+            quote = character; quoteLine = line; statements += " "; continue;
+        }
+        statements += juce::String::charToString(character);
+        if (character == '\n') ++line;
+        if (character == '(' || character == '{' || character == '[')
+            delimiters.push_back({ character, line });
+        if (character == ')' || character == '}' || character == ']') {
+            const auto expected = character == ')' ? '(' : character == '}' ? '{' : '[';
+            if (delimiters.empty() || delimiters.back().first != expected)
+                return "mismatched closing delimiter on line " + juce::String(line);
+            delimiters.pop_back();
+        }
     }
-    if (quote != 0 || parentheses != 0 || braces != 0)
-        return "response has unbalanced quotes or delimiters";
-    if (code.contains(">> n(") && ! code.contains("target="))
+    if (quote != 0)
+        return "unclosed string starting on line " + juce::String(quoteLine);
+    if (!delimiters.empty())
+        return "unclosed delimiter starting on line " + juce::String(delimiters.back().second);
+    if (statements.contains(">> n(") && ! statements.contains("target="))
         return "pattern statement has no target=";
     const std::regex assignment(R"(\b(P[a-z])\s*>>)");
-    const auto source = code.toStdString();
+    const auto source = statements.toStdString();
     std::set<std::string> players;
     for (auto it = std::sregex_iterator(source.begin(), source.end(), assignment);
          it != std::sregex_iterator(); ++it)
