@@ -1,5 +1,9 @@
 # Fishpond
 
+<p align="center">
+  <img src="assets/fishpond-icon.png" alt="Fishpond icon: a fish wearing headphones and sunglasses at DJ decks" width="192" height="192">
+</p>
+
 ![Fishpond live-coding Python routed into VST3 instruments](image/fishpond.png)
 
 Fishpond is a live-coding digital audio workstation for making music with
