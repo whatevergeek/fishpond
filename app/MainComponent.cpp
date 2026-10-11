@@ -109,6 +109,13 @@ public:
         if (!messages.empty()) messages.back()->resolve(text, snippet);
         refresh();
     }
+    void clear()
+    {
+        for (const auto& message : messages)
+            removeChildComponent(message.get());
+        messages.clear();
+        addMessage("Make something musical. Ask for a pattern, explore your code, or paste an error. Suggestions stay here until you choose to insert them.", false);
+    }
     void setAvailableWidth(int width)
     {
         availableWidth = juce::jmax(180, width);
@@ -246,6 +253,17 @@ MainComponent::MainComponent()
     assistantPromptLabel.setText("Message  /  Cmd+Return to send", juce::dontSendNotification);
     assistantPrompt.setTextToShowWhenEmpty("Ask for a pattern, explain an error, or request a fix...", juce::Colours::grey);
     assistantGenerateButton.onClick = [this] { requestAssistantSuggestion(); };
+    assistantNewChatButton.setTooltip("Clear this conversation and start a new chat");
+    assistantNewChatButton.onClick = [this] {
+        if (assistantRequestInFlight)
+            return;
+        assistantConversation->clear();
+        assistantPrompt.clear();
+        assistantStatus.setText("Ready", juce::dontSendNotification);
+        assistantStatus.setTooltip({});
+        assistantGenerateButton.setEnabled(false);
+        assistantConversationViewport.setViewPosition(0, 0);
+    };
     assistantStatus.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     assistantRefreshModelsButton.onClick = [this] { requestOllamaModels(); };
     assistantConversation = std::make_unique<AssistantChatTranscript>();
@@ -268,6 +286,7 @@ MainComponent::MainComponent()
     assistantConfigPanel.addAndMakeVisible(assistantRefreshModelsButton);
     assistantChatPanel.addAndMakeVisible(assistantConversationViewport);
     assistantConversationViewport.setViewedComponent(assistantConversation.get(), false);
+    assistantChatPanel.addAndMakeVisible(assistantNewChatButton);
     for (auto* component : { static_cast<juce::Component*>(&assistantPromptLabel),
                              static_cast<juce::Component*>(&assistantPrompt),
                              static_cast<juce::Component*>(&assistantStatus),
@@ -970,6 +989,7 @@ void MainComponent::requestAssistantSuggestion()
     fishpond::AssistantGatewayConfig config { provider, assistantEndpoint.getText(), assistantModel.getText(),
                                               assistantApiKey.getText() };
     assistantRequestInFlight = true;
+    assistantNewChatButton.setEnabled(false);
     assistantThinkingTick = 0;
     assistantConversation->beginTurn(submittedPrompt);
     assistantPrompt.clear();
@@ -985,6 +1005,7 @@ void MainComponent::requestAssistantSuggestion()
             if (safeThis == nullptr)
                 return;
             safeThis->assistantRequestInFlight = false;
+            safeThis->assistantNewChatButton.setEnabled(true);
             safeThis->assistantGenerateButton.setEnabled(safeThis->assistantPrompt.getText().trim().isNotEmpty());
             safeThis->assistantGenerateButton.setButtonText("Send");
             if (! suggestion.succeeded) {
@@ -1120,6 +1141,8 @@ void MainComponent::resized()
 
     auto assistantChatArea = assistantChatPanel.getLocalBounds().reduced(8);
     auto promptArea = assistantChatArea.removeFromBottom(120);
+    auto chatHeader = assistantChatArea.removeFromTop(30);
+    assistantNewChatButton.setBounds(chatHeader.removeFromRight(96).reduced(0, 2));
     assistantConversationViewport.setBounds(assistantChatArea);
     assistantConversation->setAvailableWidth(assistantConversationViewport.getWidth() - 16);
     assistantPromptLabel.setBounds(promptArea.removeFromTop(20));

@@ -137,6 +137,7 @@ private:
     juce::TextEditor assistantPrompt;
     juce::Viewport assistantConversationViewport;
     std::unique_ptr<AssistantChatTranscript> assistantConversation;
+    juce::TextButton assistantNewChatButton { "New chat" };
     juce::TextButton assistantGenerateButton { "Send" };
     juce::TextButton assistantRefreshModelsButton { "Refresh" };
     bool assistantRequestInFlight {};
