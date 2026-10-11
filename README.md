@@ -1,19 +1,28 @@
-# Fishpond
-
 <p align="center">
-  <img src="assets/fishpond-icon.png" alt="Fishpond icon: a fish wearing headphones and sunglasses at DJ decks" width="192" height="192">
+  <img src="assets/fishpond-icon.png" alt="Fishpond — a fish wearing headphones at DJ decks" width="128" height="128">
 </p>
 
-![Fishpond live-coding Python routed into VST3 instruments](image/fishpond.png)
+<h1 align="center">Fishpond</h1>
 
-Fishpond is a live-coding digital audio workstation for making music with
-Python. Write a pattern, evaluate it while audio is running, and hear your
-change immediately.
+<p align="center">
+  <strong>Make music with Python and your favourite instrument plugins.</strong><br>
+  A native live-coding workspace inspired by Sardine.
+</p>
 
-Fishpond is for musicians who want the spontaneity of live coding with the
-sound palette of their own instrument plugins. It uses a Python workflow
-inspired by Sardine and routes notes directly to VST3 instruments. Fishpond
-does not depend on SuperCollider and does not include a built-in synthesizer.
+<p align="center">
+  <a href="https://github.com/whatevergeek/fishpond/releases">Download for macOS</a> ·
+  <a href="RELEASES.md">Release notes</a> ·
+  <a href="#make-your-first-sound">Quick start</a> ·
+  <a href="#assistant-panel">AI assistant</a> ·
+  <a href="#building-from-source">Build from source</a>
+</p>
+
+![Fishpond live-coding workspace](image/fishpond.png)
+
+Write a pattern, evaluate it while audio is running, and hear the change.
+Fishpond brings Python live coding and hosted VST3 instruments into one desktop
+workspace, with four instrument slots, named players, and an optional AI assistant.
+Bring your own instrument plugins; no SuperCollider setup is needed.
 
 ## Platform status
 
@@ -56,7 +65,7 @@ clock.bpm = 120
 Pa >> n("C2 C3 {Eb3 G3}", target="instrument_01", p=0.5, dur=0.25)
 ```
 
-8. Place the cursor on the code and press **Shift+Return**.
+8. Select both lines and press **Shift+Return** to evaluate them.
 
 `instrument_01` is the live-code target for the first instrument slot. The
 braced notes play together as a chord. `p` controls the pattern period in
@@ -117,35 +126,40 @@ diagnostics instead of silently sending invalid events.
 
 ## Assistant panel
 
-Fishpond's optional **Assistant** side panel opens from the **Live Coding**
-tab. The editor stays available while the panel is open, so the performer can
-keep writing and use the assistant only when it is useful. Its **Chat** tab
-retains replies with individual highlighted code blocks and Copy/Insert controls.
-Each request includes tempo, ready instrument aliases and plugin names, the live
-code buffer, selection, cursor location, recent evaluator output, and scheduler
-patterns marked active, queued, or paused. Hover over the composer context
-summary for details. Each code block's Insert button inserts its snippet at the Live
-Coding editor's current cursor; review it and press **Shift+Return** yourself
-to evaluate it. The **Config** tab holds the provider, endpoint, model, and
-API-key controls.
+Open **Show Assistant** in the **Live Coding** tab. The optional right panel
+can be widened by dragging its left edge, while the editor stays available.
 
-Chat history lasts for the current app session and prior chat turns are not sent
-to the provider. Playback context describes scheduling, not guaranteed audible
-output. Code review is limited and does not guarantee syntax or musical correctness.
+1. In **Config**, choose a provider and model.
+2. In **Chat**, describe a pattern or ask for help with your code. Use **Send**
+   or **Cmd+Return**.
+3. Review the highlighted code in the reply. **Copy** copies that block;
+   **Insert** places it at the editor cursor.
+4. Press **Shift+Return** in the editor when you are ready to evaluate it.
 
-The assistant supports two providers during a Fishpond session:
+### Choose a provider
 
-- **OpenAI Responses API** uses `https://api.openai.com/v1/responses` by
-  default. Enter an API key in the panel, or leave it blank and set
-  `FISHPOND_OPENAI_API_KEY` (preferred) or `OPENAI_API_KEY` before starting
-  Fishpond. The key stays in memory only and is never saved in `.fp` files.
-- **Ollama local server** uses `http://127.0.0.1:11434/api/generate` by
-  default. Start Ollama with `ollama serve`; the panel retrieves installed
-  local models for its dropdown, and **Refresh** reloads the list. No API key
-  is required for the usual local configuration.
+| Provider | Setup |
+|---|---|
+| **Ollama** (default) | Run your local server with `ollama serve`, then select an installed model. **Refresh** reloads the model list. Default endpoint: `http://127.0.0.1:11434/api/generate`. |
+| **OpenAI** | Enter an API key in Config, or set `FISHPOND_OPENAI_API_KEY` / `OPENAI_API_KEY` before starting Fishpond. Default endpoint: `https://api.openai.com/v1/responses`. |
 
-Fishpond will not send a request until an instrument channel is ready, because
-the model must generate code for a real target such as `instrument_01`.
+Load an instrument before sending a request so suggestions have a ready target.
+API keys remain in memory and are not saved in `.fp` files.
+
+### Context the assistant receives
+
+Each Send captures your current editor buffer, selection and cursor location,
+recent evaluator output, tempo, ready instrument aliases and plugin names, and
+scheduler patterns marked active, queued or paused. Hover over the context
+summary above the composer for focus and playback details. This context is sent
+to your configured provider.
+
+Replies and their code blocks remain available during the app session. Previous
+chat turns are not yet sent to the model, and chat history is not saved across
+restarts. Playback context describes scheduling, not guaranteed audible sound.
+Code review is limited: review suggestions before running them. The assistant
+is under active development; end-to-end provider and playback validation remains
+in progress.
 
 ## Current limitations
 
@@ -242,7 +256,7 @@ diagnostics.
 The project uses a specification-driven workflow. Requirements, technical
 decisions, traceability IDs, deterministic fixtures, and manual performance
 checks are maintained in the companion
-[`fishpond-sdd`](../fishpond-sdd) repository.
+[`fishpond-sdd`](https://github.com/whatevergeek/fishpond-sdd) repository.
 
 Release maintainers can package a macOS preview from a completed release build
 with:
