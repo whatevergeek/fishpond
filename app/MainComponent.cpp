@@ -1,5 +1,144 @@
 #include "MainComponent.h"
 
+#include <algorithm>
+
+// Each message owns its document and controls for the lifetime of the conversation.
+class AssistantChatTranscript final : public juce::Component {
+    class Message final : public juce::Component {
+    public:
+        Message(juce::String text, bool isUser) : body(std::move(text)), user(isUser), editor(document, &tokeniser)
+        {
+            editor.setReadOnly(true);
+            editor.setFont(juce::Font(juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain));
+            editor.setColour(juce::CodeEditorComponent::backgroundColourId, juce::Colour(0xff11181d));
+            addChildComponent(editor);
+            addChildComponent(copy);
+            addChildComponent(insert);
+            copy.setTooltip("Copy this code block");
+            insert.setTooltip("Insert this code at the Live Coding cursor; does not run it");
+            copy.onClick = [this] { juce::SystemClipboard::copyTextToClipboard(snippet); copy.setButtonText("Copied"); };
+            insert.onClick = [this] { if (onInsert) onInsert(snippet); };
+        }
+
+        void resolve(const juce::String& text, const juce::String& code)
+        {
+            pending = false;
+            body = text;
+            snippet = code;
+            document.replaceAllContent(code);
+            editor.setVisible(code.isNotEmpty());
+            copy.setVisible(code.isNotEmpty());
+            insert.setVisible(code.isNotEmpty());
+        }
+
+        int measure(int width)
+        {
+            const int inset = user ? juce::jmin(70, width / 5) : 0;
+            bubble = { inset + 6, 0, width - inset - 12, 0 };
+            juce::AttributedString attributed;
+            attributed.append(body, juce::Font(14.0f), juce::Colour(0xffe0e7eb));
+            layout.createLayout(attributed, static_cast<float>(juce::jmax(30, bubble.getWidth() - 24)));
+            textHeight = juce::jmax(22, static_cast<int>(std::ceil(layout.getHeight())));
+            codeHeight = snippet.isEmpty() ? 0 : juce::jlimit(66, 240, document.getNumLines() * 18 + 26);
+            const int height = 30 + textHeight + (codeHeight ? 40 + codeHeight : 10);
+            bubble.setHeight(height);
+            return height + 16;
+        }
+
+        void resized() override
+        {
+            const int top = 30 + textHeight;
+            copy.setBounds(bubble.getRight() - 152, top + 5, 64, 26);
+            insert.setBounds(bubble.getRight() - 82, top + 5, 70, 26);
+            editor.setBounds(bubble.getX() + 10, top + 36, bubble.getWidth() - 20, codeHeight);
+        }
+
+        void paint(juce::Graphics& g) override
+        {
+            g.setColour(juce::Colour(user ? 0xff283e49 : 0xff20282e));
+            g.fillRoundedRectangle(bubble.toFloat(), 10.0f);
+            g.setColour(juce::Colour(0xff8fa7b3));
+            g.setFont(11.0f);
+            g.drawText(user ? "YOU" : pending ? "FISHPOND  /  THINKING" : "FISHPOND", bubble.getX() + 12, 8, bubble.getWidth() - 60, 16, juce::Justification::centredLeft);
+            layout.draw(g, juce::Rectangle<float>(static_cast<float>(bubble.getX() + 12), 30.0f,
+                                                static_cast<float>(bubble.getWidth() - 24), static_cast<float>(textHeight)));
+            if (pending) {
+                for (int i = 0; i < 3; ++i) {
+                    g.setColour(juce::Colour(0xff8fa7b3).withAlpha(i == phase % 3 ? 0.85f : 0.35f));
+                    g.fillEllipse(static_cast<float>(bubble.getRight() - 42 + i * 10), 13.0f, 5.0f, 5.0f);
+                }
+            }
+        }
+
+        std::function<void(const juce::String&)> onInsert;
+        bool pending = false;
+        int phase = 0;
+    private:
+        juce::String body, snippet;
+        bool user;
+        juce::TextLayout layout;
+        juce::Rectangle<int> bubble;
+        int textHeight = 0, codeHeight = 0;
+        juce::CodeDocument document;
+        FishpondCodeTokeniser tokeniser;
+        juce::CodeEditorComponent editor;
+        juce::TextButton copy { "Copy" }, insert { "Insert" };
+    };
+public:
+    AssistantChatTranscript()
+    {
+        addMessage("Make something musical. Ask for a pattern, explore your code, or paste an error. Suggestions stay here until you choose to insert them.", false);
+    }
+    std::function<void(const juce::String&)> onApply;
+    void beginTurn(const juce::String& user)
+    {
+        addMessage(user, true);
+        addMessage("Working on your request...", false);
+        messages.back()->pending = true;
+        refresh();
+    }
+    void animatePending(int phase)
+    {
+        if (!messages.empty() && messages.back()->pending) {
+            messages.back()->phase = phase;
+            messages.back()->repaint();
+        }
+    }
+    void resolveLatest(const juce::String& text, const juce::String& snippet)
+    {
+        if (!messages.empty()) messages.back()->resolve(text, snippet);
+        refresh();
+    }
+    void setAvailableWidth(int width)
+    {
+        availableWidth = juce::jmax(180, width);
+        refresh();
+    }
+private:
+    void addMessage(const juce::String& text, bool user)
+    {
+        auto message = std::make_unique<Message>(text, user);
+        message->onInsert = [this](const juce::String& snippet) { if (onApply) onApply(snippet); };
+        addAndMakeVisible(*message);
+        messages.push_back(std::move(message));
+        refresh();
+    }
+    void refresh()
+    {
+        int y = 12;
+        for (auto& message : messages) {
+            const int height = message->measure(availableWidth);
+            message->setBounds(0, y, availableWidth, height);
+            message->resized();
+            message->repaint();
+            y += height;
+        }
+        setSize(availableWidth, y);
+    }
+    std::vector<std::unique_ptr<Message>> messages;
+    int availableWidth = 300;
+};
+
 namespace {
 class PluginEditorWindow final : public juce::DocumentWindow {
 public:
@@ -76,6 +215,75 @@ MainComponent::MainComponent()
     diagnostics.setText("Ready. Load an instrument in Instruments, then evaluate a pattern.", juce::dontSendNotification);
     liveCodingPanel.addAndMakeVisible(liveCodingEditor);
     liveCodingPanel.addAndMakeVisible(diagnostics);
+    assistantToggleButton.onClick = [this] {
+        assistantPanelVisible = ! assistantPanelVisible;
+        assistantPanel.setVisible(assistantPanelVisible);
+        assistantToggleButton.setButtonText(assistantPanelVisible ? "Hide Assistant" : "Show Assistant");
+        resized();
+    };
+    liveCodingPanel.addAndMakeVisible(assistantToggleButton);
+
+    assistantProvider.addItem("OpenAI Responses API", 1);
+    assistantProvider.addItem("Ollama local server", 2);
+    assistantProvider.setSelectedId(2, juce::dontSendNotification);
+    assistantProvider.onChange = [this] { updateAssistantProviderFields(); };
+    assistantEndpoint.setTextToShowWhenEmpty("Provider endpoint", juce::Colours::grey);
+    assistantModel.setTextToShowWhenEmpty("Model", juce::Colours::grey);
+    assistantModelChoices.setTextWhenNothingSelected("Choose an installed Ollama model");
+    assistantModelChoices.onChange = [this] {
+        if (assistantModelChoices.getSelectedId() > 0)
+            assistantModel.setText(assistantModelChoices.getText(), juce::dontSendNotification);
+    };
+    assistantApiKey.setTextToShowWhenEmpty("Uses FISHPOND_OPENAI_API_KEY or OPENAI_API_KEY when blank", juce::Colours::grey);
+    assistantApiKey.setPasswordCharacter('*');
+    assistantPrompt.setMultiLine(true);
+    assistantPrompt.setReturnKeyStartsNewLine(true);
+    assistantPrompt.addKeyListener(this);
+    assistantPrompt.onTextChange = [this] {
+        assistantGenerateButton.setEnabled(!assistantRequestInFlight && assistantPrompt.getText().trim().isNotEmpty());
+    };
+    assistantGenerateButton.setEnabled(false);
+    assistantPromptLabel.setText("Message  /  Cmd+Return to send", juce::dontSendNotification);
+    assistantPrompt.setTextToShowWhenEmpty("Ask for a pattern, explain an error, or request a fix...", juce::Colours::grey);
+    assistantGenerateButton.onClick = [this] { requestAssistantSuggestion(); };
+    assistantStatus.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    assistantRefreshModelsButton.onClick = [this] { requestOllamaModels(); };
+    assistantConversation = std::make_unique<AssistantChatTranscript>();
+    assistantConversation->onApply = [this](const juce::String& code) { insertAssistantSuggestion(code); };
+    assistantTabs.setColour(juce::TabbedComponent::backgroundColourId, juce::Colour(0xff171e23));
+    assistantPrompt.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff202b32));
+    assistantPrompt.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff435b68));
+    assistantPrompt.setIndents(10, 8);
+    for (auto* component : { static_cast<juce::Component*>(&assistantProviderLabel),
+                             static_cast<juce::Component*>(&assistantProvider),
+                             static_cast<juce::Component*>(&assistantEndpointLabel),
+                             static_cast<juce::Component*>(&assistantEndpoint),
+                             static_cast<juce::Component*>(&assistantModelLabel),
+                             static_cast<juce::Component*>(&assistantModel),
+                             static_cast<juce::Component*>(&assistantModelChoices),
+                             static_cast<juce::Component*>(&assistantApiKeyLabel),
+                             static_cast<juce::Component*>(&assistantApiKey),
+                             static_cast<juce::Component*>(&assistantApiKey) })
+        assistantConfigPanel.addAndMakeVisible(*component);
+    assistantConfigPanel.addAndMakeVisible(assistantRefreshModelsButton);
+    assistantChatPanel.addAndMakeVisible(assistantConversationViewport);
+    assistantConversationViewport.setViewedComponent(assistantConversation.get(), false);
+    for (auto* component : { static_cast<juce::Component*>(&assistantPromptLabel),
+                             static_cast<juce::Component*>(&assistantPrompt),
+                             static_cast<juce::Component*>(&assistantStatus),
+                             static_cast<juce::Component*>(&assistantGenerateButton) })
+        assistantChatPanel.addAndMakeVisible(*component);
+    assistantTabs.addTab("Chat", juce::Colour(0xff171e23), &assistantChatPanel, false);
+    assistantTabs.addTab("Config", juce::Colour(0xff171e23), &assistantConfigPanel, false);
+    assistantPanel.addAndMakeVisible(assistantTabs);
+    assistantPanelConstrainer.setMinimumSize(300, 240);
+    assistantPanelConstrainer.setMaximumSize(720, 4000);
+    assistantPanel.addAndMakeVisible(assistantResizeHandle);
+    assistantPanel.addComponentListener(this);
+    liveCodingPanel.addChildComponent(assistantPanel);
+    assistantPanel.setVisible(false);
+    updateAssistantProviderFields();
+
     instrumentsPanel.setText("Instruments - four independent instrument slots", juce::dontSendNotification);
     instrumentsPanel.setJustificationType(juce::Justification::centred);
 
@@ -433,6 +641,8 @@ void MainComponent::saveLiveCodingFileTo(juce::File file)
 MainComponent::~MainComponent()
 {
     stopTimer();
+    assistantPanel.removeComponentListener(this);
+    assistantConversationViewport.setViewedComponent(nullptr, false);
     liveCodingEditor.removeKeyListener(this);
     deviceManager.removeAudioCallback(this);
     deviceManager.closeAudioDevice();
@@ -458,6 +668,18 @@ void MainComponent::executeEditorText(const juce::String& source)
 
 void MainComponent::timerCallback()
 {
+    const auto contextNow = juce::Time::getMillisecondCounterHiRes();
+    if (assistantPanelVisible && contextNow - assistantContextUpdatedAt >= 250.0) {
+        assistantContextUpdatedAt = contextNow;
+        const auto context = assistantSessionContext();
+        assistantPromptLabel.setText(context.summary, juce::dontSendNotification);
+        assistantPromptLabel.setTooltip(context.editorContext + "\n\n" + context.playbackContext);
+    }
+
+    // One quiet activity indicator; keep the composer and its actions stationary.
+    if (assistantRequestInFlight && (++assistantThinkingTick % 15 == 0))
+        assistantConversation->animatePending(assistantThinkingTick / 15);
+
     for (std::size_t slotIndex = 0; slotIndex < instrumentSlots.size(); ++slotIndex) {
         auto& slot = instrumentSlots[slotIndex];
         while (slot.handoff.reclaimOnWorker() != nullptr) {}
@@ -619,8 +841,201 @@ juce::Range<int> MainComponent::editorEvaluationRange() const
     return { rangeStart, rangeEnd };
 }
 
+fishpond::AssistantSessionContext MainComponent::assistantSessionContext() const
+{
+    fishpond::AssistantSessionContext context;
+    context.tempoBpm = tempoBpm;
+    context.liveCode = liveCodingDocument.getAllContent();
+    context.diagnostics = diagnostics.getText();
+    const auto caret = juce::CodeDocument::Position(liveCodingDocument, liveCodingEditor.getCaretPosition());
+    const auto selected = liveCodingEditor.getHighlightedRegion();
+    const auto start = juce::CodeDocument::Position(liveCodingDocument, selected.getStart());
+    const auto end = juce::CodeDocument::Position(liveCodingDocument, selected.getEnd());
+    context.editorContext = "Cursor (1-based): line " + juce::String(caret.getLineNumber() + 1)
+        + ", column " + juce::String(caret.getIndexInLine() + 1)
+        + "\nCursor line: " + liveCodingDocument.getLine(caret.getLineNumber())
+        + "\nSelection: " + (selected.isEmpty() ? juce::String("none")
+            : "lines " + juce::String(start.getLineNumber() + 1) + "-" + juce::String(end.getLineNumber() + 1)
+                + "\n" + context.liveCode.substring(selected.getStart(), selected.getEnd()));
+    const bool running = audioShell.state() == fishpond::AudioShellState::running;
+    const auto snapshot = bassScheduler.snapshot();
+    juce::StringArray playing, queued;
+    context.playbackContext = running ? "Audio engine: running\n" : "Audio engine: stopped (no audible playback)\n";
+    context.playbackContext += "Unprocessed scheduler commands: " + juce::String(static_cast<int>(snapshot.unprocessedCommands))
+        + "\nScheduler-accepted patterns; MIDI notes use -1 for rests.\n";
+    for (const auto& entry : snapshot.patterns) {
+        const auto& pattern = entry.pattern;
+        const auto player = "P" + juce::String::charToString(static_cast<juce::juce_wchar>('a' + pattern.playerIndex));
+        const bool pending = snapshot.renderFrame < entry.startFrame;
+        if (pending) queued.add(player);
+        else if (running) playing.add(player);
+        juce::String target = "channel " + juce::String(static_cast<juce::int64>(pattern.channelId));
+        for (const auto& channel : channels.channels())
+            if (channel.id == pattern.channelId) target = channel.alias;
+        juce::StringArray steps;
+        for (const auto& step : pattern.noteSteps) {
+            juce::StringArray notes;
+            for (const auto note : step) notes.add(juce::String(note));
+            steps.add("[" + notes.joinIntoString(",") + "]");
+        }
+        context.playbackContext += player + " | " + (pending ? "queued for next bar" : running ? "active" : "paused")
+            + " | target=" + target + " | MIDI steps=[" + steps.joinIntoString(",") + "]"
+            + " | p=" + juce::String(pattern.periodBeats) + " | dur=" + juce::String(pattern.durationBeats)
+            + " | velocity=" + juce::String(static_cast<int>(pattern.velocity)) + "\n";
+    }
+    context.playbackContext += "Active means scheduled playback, not proof of audible sound. Already queued notes may finish after replacement or stop.\n";
+    context.summary = (selected.isEmpty() ? "Cursor L" + juce::String(caret.getLineNumber() + 1)
+        : "Selected L" + juce::String(start.getLineNumber() + 1) + "-" + juce::String(end.getLineNumber() + 1))
+        + " | " + (running ? "Playing: " + (playing.isEmpty() ? juce::String("none") : playing.joinIntoString(",")) : juce::String("Audio stopped"))
+        + (queued.isEmpty() ? juce::String() : " | Queued: " + queued.joinIntoString(","));
+
+    const auto& channelEntries = channels.channels();
+    for (std::size_t slotIndex = 0; slotIndex < instrumentSlots.size() && slotIndex < channelEntries.size(); ++slotIndex)
+        if (instrumentSlots[slotIndex].instrument != nullptr
+            && instrumentSlots[slotIndex].instrument->state() == fishpond::SingleChannelState::ready)
+        {
+            context.readyTargets.push_back(channelEntries[slotIndex].alias);
+            if (auto* processor = instrumentSlots[slotIndex].instrument->activeProcessorForEditor())
+                context.playbackContext += "Ready instrument: " + juce::String(channelEntries[slotIndex].alias)
+                    + " | plugin=" + processor->getName() + "\n";
+        }
+    return context;
+}
+
+void MainComponent::updateAssistantProviderFields()
+{
+    const auto isOllama = assistantProvider.getSelectedId() == 2;
+    const auto provider = isOllama ? fishpond::AssistantProvider::ollama : fishpond::AssistantProvider::openAI;
+    assistantEndpoint.setText(fishpond::AssistantGateway::defaultEndpoint(provider), juce::dontSendNotification);
+    assistantModel.setText(fishpond::AssistantGateway::defaultModel(provider), juce::dontSendNotification);
+    assistantModel.setVisible(! isOllama);
+    assistantModelChoices.setVisible(isOllama);
+    assistantRefreshModelsButton.setVisible(isOllama);
+    assistantApiKey.setEnabled(! isOllama);
+    assistantApiKeyLabel.setEnabled(! isOllama);
+    if (isOllama) {
+        assistantApiKey.setText({}, juce::dontSendNotification);
+        requestOllamaModels();
+    }
+    resized();
+}
+
+void MainComponent::requestOllamaModels()
+{
+    if (assistantProvider.getSelectedId() != 2)
+        return;
+
+    const auto requestId = ++assistantModelListRequestId;
+    assistantRefreshModelsButton.setEnabled(false);
+    assistantModelChoices.clear(juce::dontSendNotification);
+    assistantModelChoices.setTextWhenNothingSelected("Loading installed Ollama models...");
+    const juce::Component::SafePointer<MainComponent> safeThis(this);
+    assistantGateway.listOllamaModelsAsync(assistantEndpoint.getText(),
+        [safeThis, requestId] (std::vector<juce::String> models, juce::String diagnostic) {
+            if (safeThis == nullptr || safeThis->assistantProvider.getSelectedId() != 2
+                || safeThis->assistantModelListRequestId != requestId)
+                return;
+
+            safeThis->assistantRefreshModelsButton.setEnabled(true);
+            safeThis->assistantModelChoices.clear(juce::dontSendNotification);
+            for (std::size_t index = 0; index < models.size(); ++index)
+                safeThis->assistantModelChoices.addItem(models[index], static_cast<int>(index + 1));
+
+            if (models.empty()) {
+                safeThis->assistantModelChoices.setTextWhenNothingSelected(diagnostic);
+                safeThis->assistantModelChoices.setTooltip(diagnostic);
+                return;
+            }
+
+            const auto currentModel = safeThis->assistantModel.getText();
+            const auto selectedIndex = std::find(models.begin(), models.end(), currentModel);
+            const auto selection = selectedIndex == models.end()
+                ? 1
+                : static_cast<int>(std::distance(models.begin(), selectedIndex) + 1);
+            safeThis->assistantModelChoices.setSelectedId(selection, juce::sendNotification);
+            safeThis->assistantModelChoices.setTooltip(juce::String(static_cast<int>(models.size()))
+                                                           + " installed Ollama models available");
+        });
+}
+
+void MainComponent::requestAssistantSuggestion()
+{
+    if (assistantRequestInFlight || assistantPrompt.getText().trim().isEmpty())
+        return;
+    const auto submittedPrompt = assistantPrompt.getText().trim();
+
+    const auto provider = assistantProvider.getSelectedId() == 2
+        ? fishpond::AssistantProvider::ollama
+        : fishpond::AssistantProvider::openAI;
+    fishpond::AssistantGatewayConfig config { provider, assistantEndpoint.getText(), assistantModel.getText(),
+                                              assistantApiKey.getText() };
+    assistantRequestInFlight = true;
+    assistantThinkingTick = 0;
+    assistantConversation->beginTurn(submittedPrompt);
+    assistantPrompt.clear();
+    assistantConversationViewport.setViewPosition(0, assistantConversation->getHeight());
+    assistantGenerateButton.setEnabled(false);
+    assistantGenerateButton.setButtonText("Send");
+    assistantStatus.setText("You can keep editing", juce::dontSendNotification);
+    assistantStatus.setTooltip({});
+
+    const juce::Component::SafePointer<MainComponent> safeThis(this);
+    assistantGateway.requestAsync(std::move(config), assistantSessionContext(), submittedPrompt,
+        [safeThis, submittedPrompt] (fishpond::AssistantSuggestion suggestion) {
+            if (safeThis == nullptr)
+                return;
+            safeThis->assistantRequestInFlight = false;
+            safeThis->assistantGenerateButton.setEnabled(safeThis->assistantPrompt.getText().trim().isNotEmpty());
+            safeThis->assistantGenerateButton.setButtonText("Send");
+            if (! suggestion.succeeded) {
+                const bool invalidResponse = suggestion.diagnostic.contains("FP_ASSISTANT_REVIEW_FAILED")
+                    || suggestion.diagnostic.contains("FP_ASSISTANT_RESPONSE_INVALID");
+                juce::String recovery;
+                if (suggestion.diagnostic.startsWith("FP_ASSISTANT_TARGET_REQUIRED"))
+                    recovery = "Load an instrument in the Instruments tab first, then send again. For drums, load a drum instrument.";
+                else if (suggestion.diagnostic.startsWith("FP_ASSISTANT_CONFIG_REQUIRED"))
+                    recovery = "Choose a model and endpoint in Config, then send again.";
+                else if (suggestion.diagnostic.startsWith("FP_ASSISTANT_API_KEY_REQUIRED"))
+                    recovery = "Add your OpenAI API key in Config, or select Ollama.";
+                else if (suggestion.diagnostic.startsWith("FP_ASSISTANT_NETWORK_FAILED"))
+                    recovery = "Couldn't reach the provider. Check that the server is running and the endpoint in Config is correct.";
+                else if (invalidResponse)
+                    recovery = "The model response couldn't be accepted as usable code. Try again or choose another model.";
+                else
+                    recovery = "The provider couldn't complete this request.";
+                safeThis->assistantConversation->resolveLatest(recovery + "\n\nDetails: " + suggestion.diagnostic, {});
+                // Restore only an empty composer: never replace a new draft typed while waiting.
+                if (safeThis->assistantPrompt.getText().isEmpty())
+                    safeThis->assistantPrompt.setText(submittedPrompt);
+                safeThis->assistantGenerateButton.setEnabled(safeThis->assistantPrompt.getText().trim().isNotEmpty());
+                safeThis->assistantConversationViewport.setViewPosition(0, safeThis->assistantConversation->getHeight());
+                safeThis->assistantStatus.setText("Request failed", juce::dontSendNotification);
+                safeThis->assistantStatus.setTooltip(suggestion.diagnostic);
+                return;
+            }
+            safeThis->assistantConversation->resolveLatest(suggestion.explanation, suggestion.code);
+            safeThis->assistantConversationViewport.setViewPosition(0, safeThis->assistantConversation->getHeight());
+            safeThis->assistantStatus.setText("Response ready", juce::dontSendNotification);
+        });
+}
+
+void MainComponent::insertAssistantSuggestion(const juce::String& code)
+{
+    if (code.isEmpty())
+        return;
+    liveCodingEditor.insertTextAtCaret(code);
+    liveCodingEditor.grabKeyboardFocus();
+    diagnostics.setText("Assistant suggestion inserted at the current cursor. Review it, then press Shift+Return to evaluate.",
+                        juce::dontSendNotification);
+}
+
 bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* origin)
 {
+    if (origin == &assistantPrompt && key.getKeyCode() == juce::KeyPress::returnKey
+        && key.getModifiers().isCommandDown()) {
+        requestAssistantSuggestion();
+        return true;
+    }
     if (origin != &liveCodingEditor)
         return false;
 
@@ -670,8 +1085,49 @@ void MainComponent::resized()
     deviceStatus.setBounds(transport);
     tabs.setBounds(area);
     auto liveArea = liveCodingPanel.getLocalBounds().reduced(8);
+    auto liveToolbar = liveArea.removeFromTop(28);
+    assistantToggleButton.setBounds(liveToolbar.removeFromRight(150));
+    liveArea.removeFromTop(6);
     diagnostics.setBounds(liveArea.removeFromBottom(84));
+    liveArea.removeFromBottom(6);
+    if (assistantPanelVisible) {
+        const auto assistantWidth = juce::jlimit(300, juce::jmax(300, liveArea.getWidth() - 180), assistantPanelWidth);
+        assistantPanel.setBounds(liveArea.removeFromRight(assistantWidth));
+        liveArea.removeFromRight(8);
+    } else {
+        assistantPanel.setBounds({});
+    }
     liveCodingEditor.setBounds(liveArea);
+
+    assistantTabs.setBounds(assistantPanel.getLocalBounds());
+    assistantResizeHandle.setBounds(0, 0, 8, assistantPanel.getHeight());
+
+    auto assistantConfigArea = assistantConfigPanel.getLocalBounds().reduced(8);
+    assistantProviderLabel.setBounds(assistantConfigArea.removeFromTop(20));
+    assistantProvider.setBounds(assistantConfigArea.removeFromTop(28));
+    assistantConfigArea.removeFromTop(6);
+    assistantEndpointLabel.setBounds(assistantConfigArea.removeFromTop(20));
+    assistantEndpoint.setBounds(assistantConfigArea.removeFromTop(28));
+    assistantConfigArea.removeFromTop(6);
+    assistantModelLabel.setBounds(assistantConfigArea.removeFromTop(20));
+    auto assistantModelArea = assistantConfigArea.removeFromTop(28);
+    assistantModel.setBounds(assistantModelArea);
+    assistantRefreshModelsButton.setBounds(assistantModelArea.removeFromRight(78));
+    assistantModelChoices.setBounds(assistantModelArea);
+    assistantConfigArea.removeFromTop(6);
+    assistantApiKeyLabel.setBounds(assistantConfigArea.removeFromTop(20));
+    assistantApiKey.setBounds(assistantConfigArea.removeFromTop(28));
+
+    auto assistantChatArea = assistantChatPanel.getLocalBounds().reduced(8);
+    auto promptArea = assistantChatArea.removeFromBottom(120);
+    assistantConversationViewport.setBounds(assistantChatArea);
+    assistantConversation->setAvailableWidth(assistantConversationViewport.getWidth() - 16);
+    assistantPromptLabel.setBounds(promptArea.removeFromTop(20));
+    assistantPrompt.setBounds(promptArea.removeFromTop(64));
+    promptArea.removeFromTop(6);
+    auto assistantActions = promptArea;
+    assistantStatus.setBounds(assistantActions.removeFromLeft(150));
+    assistantGenerateButton.setBounds(assistantActions.removeFromRight(104));
     auto instrumentArea = instrumentsPanel.getLocalBounds().reduced(8);
     for (auto& slot : instrumentSlots) {
         auto actions = instrumentArea.removeFromTop(32);
@@ -703,7 +1159,7 @@ void MainComponent::audioDeviceAboutToStart(juce::AudioIODevice* device)
     for (auto& buffer : channelAudio)
         buffer.setSize(outputChannels, device->getCurrentBufferSizeSamples(), false, false, true);
     updateSchedulerTiming();
-    deviceStatus.setText("Running " + device->getName() + " — "
+    deviceStatus.setText("Running " + device->getName() + " - "
                              + juce::String(device->getCurrentSampleRate(), 0) + " Hz, "
                              + juce::String(device->getCurrentBufferSizeSamples()) + " samples",
                          juce::dontSendNotification);
@@ -718,6 +1174,15 @@ void MainComponent::updateSchedulerTiming()
 void MainComponent::audioDeviceStopped()
 {
     audioShell.stop();
+}
+
+void MainComponent::componentMovedOrResized(juce::Component& component, bool, bool wasResized)
+{
+    if (&component != &assistantPanel || ! wasResized || ! assistantPanelVisible)
+        return;
+
+    assistantPanelWidth = assistantPanel.getWidth();
+    resized();
 }
 
 void MainComponent::audioDeviceIOCallbackWithContext(const float* const*, int, float* const* output,

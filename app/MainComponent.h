@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AssistantGateway.h"
 #include "AudioShell.h"
 #include "LiveCodingEditor.h"
 #include "host/ControlledVST3Bass.h"
@@ -18,10 +19,13 @@
 #include <memory>
 #include <vector>
 
+class AssistantChatTranscript;
+
 class MainComponent final : public juce::Component,
                             private juce::AudioIODeviceCallback,
                             private juce::Timer,
-                            private juce::KeyListener {
+                            private juce::KeyListener,
+                            private juce::ComponentListener {
 public:
     MainComponent();
     ~MainComponent() override;
@@ -69,9 +73,15 @@ private:
     void timerCallback() override;
     void updateSchedulerTiming();
     juce::Range<int> editorEvaluationRange() const;
+    void requestAssistantSuggestion();
+    void insertAssistantSuggestion(const juce::String& code);
+    void updateAssistantProviderFields();
+    void requestOllamaModels();
+    fishpond::AssistantSessionContext assistantSessionContext() const;
     bool keyPressed(const juce::KeyPress& key, juce::Component* origin) override;
     void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
+    void componentMovedOrResized(juce::Component& component, bool wasMoved, bool wasResized) override;
     void audioDeviceIOCallbackWithContext(const float* const*, int, float* const* output,
                                           int outputChannels, int samples,
                                           const juce::AudioIODeviceCallbackContext&) override;
@@ -97,6 +107,14 @@ private:
     juce::AudioDeviceManager deviceManager;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     juce::Component liveCodingPanel;
+    juce::Component assistantPanel;
+    juce::ComponentBoundsConstrainer assistantPanelConstrainer;
+    juce::ResizableEdgeComponent assistantResizeHandle { &assistantPanel, &assistantPanelConstrainer,
+                                                          juce::ResizableEdgeComponent::leftEdge };
+    juce::TabbedComponent assistantTabs { juce::TabbedButtonBar::TabsAtTop };
+    juce::Component assistantChatPanel;
+    juce::Component assistantConfigPanel;
+    juce::TextButton assistantToggleButton { "Show Assistant" };
     juce::CodeDocument liveCodingDocument;
     FishpondCodeTokeniser liveCodingTokeniser;
     LiveCodingEditor liveCodingEditor { liveCodingDocument, liveCodingTokeniser };
@@ -104,6 +122,29 @@ private:
     std::unique_ptr<juce::FileChooser> liveCodingFileChooser;
     juce::TextEditor diagnostics;
     juce::Label instrumentsPanel;
+    fishpond::AssistantGateway assistantGateway;
+    juce::ComboBox assistantProvider;
+    juce::Label assistantProviderLabel { {}, "Provider" };
+    juce::Label assistantEndpointLabel { {}, "Endpoint" };
+    juce::Label assistantModelLabel { {}, "Model" };
+    juce::Label assistantApiKeyLabel { {}, "API key" };
+    juce::Label assistantPromptLabel { {}, "Message" };
+    juce::Label assistantStatus { {}, "Ready" };
+    juce::TextEditor assistantEndpoint;
+    juce::TextEditor assistantModel;
+    juce::ComboBox assistantModelChoices;
+    juce::TextEditor assistantApiKey;
+    juce::TextEditor assistantPrompt;
+    juce::Viewport assistantConversationViewport;
+    std::unique_ptr<AssistantChatTranscript> assistantConversation;
+    juce::TextButton assistantGenerateButton { "Send" };
+    juce::TextButton assistantRefreshModelsButton { "Refresh" };
+    bool assistantRequestInFlight {};
+    int assistantThinkingTick {};
+    double assistantContextUpdatedAt {};
+    std::uint64_t assistantModelListRequestId {};
+    bool assistantPanelVisible {};
+    int assistantPanelWidth { 420 };
     juce::Label deviceStatus;
     juce::TextButton startStopButton { "Start audio" };
     juce::Label tempoLabel { {}, "clock.bpm = 120" };

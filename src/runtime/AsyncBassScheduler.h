@@ -3,6 +3,7 @@
 #include "runtime/BassPlayerScheduler.h"
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -28,6 +29,22 @@ public:
         std::uint8_t velocity { 100 };
         double durationBeats { 1.0 };
     };
+    struct ScheduledPattern {
+        Pattern pattern;
+        std::uint64_t startFrame {};
+    };
+    struct Snapshot {
+        std::vector<ScheduledPattern> patterns;
+        std::uint64_t renderFrame {};
+        std::size_t unprocessedCommands {};
+    };
+
+    // Read on the UI thread; neither this mutex nor these copies touch the audio callback.
+    Snapshot snapshot() const
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        return { observedPatterns, renderFrame.load(std::memory_order_acquire), commands.size() };
+    }
 
     AsyncBassScheduler(NoteEventQueue<Capacity>& queueToFill, const std::atomic<std::uint64_t>& renderFrameToRead)
         : queue(queueToFill), renderFrame(renderFrameToRead), worker([this] { run(); }) {}
@@ -109,18 +126,25 @@ private:
                 pending.swap(commands);
             }
             for (const auto& command : pending) {
+                const std::lock_guard<std::mutex> lock(mutex);
                 if (command.type == CommandType::timing) {
                     scheduler->setTiming(command.timing);
                 }
                 else if (command.type == CommandType::replaceAll) {
                     const auto startFrame = scheduler->nextBarFrame(renderFrame.load(std::memory_order_acquire));
-                    for (const auto& pattern : command.patterns)
-                        scheduler->replaceStepsAtFrame(pattern.playerIndex, pattern.noteSteps, pattern.periodBeats, pattern.velocity,
-                                                       pattern.durationBeats, startFrame, pattern.channelId);
+                    for (const auto& pattern : command.patterns) {
+                        if (scheduler->replaceStepsAtFrame(pattern.playerIndex, pattern.noteSteps, pattern.periodBeats, pattern.velocity,
+                                                          pattern.durationBeats, startFrame, pattern.channelId)) {
+                            observedPatterns.erase(std::remove_if(observedPatterns.begin(), observedPatterns.end(), [&](const auto& item) { return item.pattern.playerIndex == pattern.playerIndex; }), observedPatterns.end());
+                            observedPatterns.push_back({ pattern, startFrame });
+                        }
+                    }
                 } else if (command.type == CommandType::remove) {
                     scheduler->remove(command.playerIndex);
+                    observedPatterns.erase(std::remove_if(observedPatterns.begin(), observedPatterns.end(), [&](const auto& item) { return item.pattern.playerIndex == command.playerIndex; }), observedPatterns.end());
                 } else {
                     scheduler->clear();
+                    observedPatterns.clear();
                     queue.requestPanic();
                 }
             }
@@ -130,7 +154,8 @@ private:
 
     NoteEventQueue<Capacity>& queue;
     const std::atomic<std::uint64_t>& renderFrame;
-    std::mutex mutex;
+    mutable std::mutex mutex;
+    std::vector<ScheduledPattern> observedPatterns;
     std::condition_variable wake;
     std::deque<Command> commands;
     bool stopping {};

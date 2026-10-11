@@ -1,9 +1,18 @@
 juce_add_gui_app(FishpondApp
     PRODUCT_NAME "Fishpond"
+    ICON_BIG "${PROJECT_SOURCE_DIR}/assets/fishpond-icon.png"
 )
+
+if(APPLE)
+    set_source_files_properties(
+        "${CMAKE_CURRENT_BINARY_DIR}/FishpondApp_artefacts/JuceLibraryCode/AppIcon.icns"
+        PROPERTIES MACOSX_PACKAGE_LOCATION Resources
+    )
+endif()
 
 target_sources(FishpondApp PRIVATE
     Main.cpp
+    AssistantGateway.cpp
     MainComponent.cpp
     LiveCodingEditor.cpp
     "${PROJECT_SOURCE_DIR}/src/AudioShell.cpp"

@@ -111,6 +111,38 @@ diagnostics instead of silently sending invalid events.
 - Asynchronous VST3 loading and replacement while audio continues.
 - Saving and loading Live Coding text as `.fp` files.
 
+## Assistant panel
+
+Fishpond's optional **Assistant** side panel opens from the **Live Coding**
+tab. The editor stays available while the panel is open, so the performer can
+keep writing and use the assistant only when it is useful. Its **Chat** tab
+retains replies with individual highlighted code blocks and Copy/Insert controls.
+Each request includes tempo, ready instrument aliases and plugin names, the live
+code buffer, selection, cursor location, recent evaluator output, and scheduler
+patterns marked active, queued, or paused. Hover over the composer context
+summary for details. Each code block's Insert button inserts its snippet at the Live
+Coding editor's current cursor; review it and press **Shift+Return** yourself
+to evaluate it. The **Config** tab holds the provider, endpoint, model, and
+API-key controls.
+
+Chat history lasts for the current app session and prior chat turns are not sent
+to the provider. Playback context describes scheduling, not guaranteed audible
+output. Code review is limited and does not guarantee syntax or musical correctness.
+
+The assistant supports two providers during a Fishpond session:
+
+- **OpenAI Responses API** uses `https://api.openai.com/v1/responses` by
+  default. Enter an API key in the panel, or leave it blank and set
+  `FISHPOND_OPENAI_API_KEY` (preferred) or `OPENAI_API_KEY` before starting
+  Fishpond. The key stays in memory only and is never saved in `.fp` files.
+- **Ollama local server** uses `http://127.0.0.1:11434/api/generate` by
+  default. Start Ollama with `ollama serve`; the panel retrieves installed
+  local models for its dropdown, and **Refresh** reloads the list. No API key
+  is required for the usual local configuration.
+
+Fishpond will not send a request until an instrument channel is ready, because
+the model must generate code for a real target such as `instrument_01`.
+
 ## Current limitations
 
 - The macOS preview is unsigned and not Apple-notarized. macOS may require
