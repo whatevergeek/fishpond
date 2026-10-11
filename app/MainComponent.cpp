@@ -31,6 +31,16 @@ class AssistantChatTranscript final : public juce::Component {
             insert.setVisible(code.isNotEmpty());
         }
 
+        bool isUserMessage() const { return user; }
+        bool isPending() const { return pending; }
+        juce::String historyContent() const
+        {
+            auto content = body;
+            if (snippet.isNotEmpty())
+                content += "\n```python\n" + snippet + "\n```";
+            return content;
+        }
+
         int measure(int width)
         {
             const int inset = user ? juce::jmin(70, width / 5) : 0;
@@ -88,8 +98,34 @@ public:
     AssistantChatTranscript()
     {
         addMessage("Make something musical. Ask for a pattern, explore your code, or paste an error. Suggestions stay here until you choose to insert them.", false);
+        firstConversationMessage = messages.size();
     }
     std::function<void(const juce::String&)> onApply;
+    std::vector<fishpond::AssistantChatTurn> recentHistory() const
+    {
+        constexpr std::size_t maxMessages = 12;
+        constexpr int maxCharacters = 16000;
+        std::vector<fishpond::AssistantChatTurn> history;
+        int characters = 0;
+
+        for (auto index = messages.size(); index > firstConversationMessage && history.size() < maxMessages;) {
+            --index;
+            const auto& message = messages[index];
+            if (message->isPending())
+                continue;
+
+            const auto content = message->historyContent().trim();
+            if (content.isEmpty())
+                continue;
+            if (characters + content.length() > maxCharacters)
+                break;
+
+            history.push_back({ message->isUserMessage() ? "user" : "assistant", content });
+            characters += content.length();
+        }
+        std::reverse(history.begin(), history.end());
+        return history;
+    }
     void beginTurn(const juce::String& user)
     {
         addMessage(user, true);
@@ -115,6 +151,7 @@ public:
             removeChildComponent(message.get());
         messages.clear();
         addMessage("Make something musical. Ask for a pattern, explore your code, or paste an error. Suggestions stay here until you choose to insert them.", false);
+        firstConversationMessage = messages.size();
     }
     void setAvailableWidth(int width)
     {
@@ -143,6 +180,7 @@ private:
         setSize(availableWidth, y);
     }
     std::vector<std::unique_ptr<Message>> messages;
+    std::size_t firstConversationMessage {};
     int availableWidth = 300;
 };
 
@@ -232,6 +270,7 @@ MainComponent::MainComponent()
 
     assistantProvider.addItem("OpenAI Responses API", 1);
     assistantProvider.addItem("Ollama local server", 2);
+    assistantProvider.addItem("Local Responses API (Codex Bridge)", 3);
     assistantProvider.setSelectedId(2, juce::dontSendNotification);
     assistantProvider.onChange = [this] { updateAssistantProviderFields(); };
     assistantEndpoint.setTextToShowWhenEmpty("Provider endpoint", juce::Colours::grey);
@@ -383,7 +422,8 @@ void MainComponent::chooseInstrument(std::size_t slotIndex)
         });
 }
 
-void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle)
+void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle,
+                                         const juce::MemoryBlock& pluginState)
 {
     const auto name = instrumentName(slotIndex);
     auto& slot = instrumentSlots[slotIndex];
@@ -420,7 +460,7 @@ void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File
     // require creation, bus negotiation, and prepareToPlay to happen there, but
     // it is still entirely outside the audio callback and audio keeps rendering.
     format->createPluginInstanceAsync(*description, configuration.sampleRate, configuration.blockSize,
-        [safeThis, slotIndex, loadId, bundleName, configuration, format]
+        [safeThis, slotIndex, loadId, bundleName, bundle, pluginState, configuration, format]
         (std::unique_ptr<juce::AudioPluginInstance> instance, const juce::String& loadError) {
             if (safeThis == nullptr)
                 return;
@@ -430,6 +470,8 @@ void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File
             if (! submitted) {
                 preparationDiagnostic = "FP_INSTRUMENT_LOAD: " + loadError.toStdString();
             } else {
+                if (pluginState.getSize() > 0)
+                    instance->setStateInformation(pluginState.getData(), static_cast<int>(pluginState.getSize()));
                 fishpond::HostedInstrument preparedInstrument(configuration);
                 submitted = preparedInstrument.prepareProcessor(std::move(instance), preparationDiagnostic);
                 if (submitted) {
@@ -443,9 +485,152 @@ void MainComponent::loadInstrumentBundle(std::size_t slotIndex, const juce::File
                 }
             }
 
+            if (submitted) {
+                auto& slot = safeThis->instrumentSlots[slotIndex];
+                slot.bundleFile = bundle;
+                slot.savedPluginState = pluginState;
+            }
+
             safeThis->finishInstrumentLoad(slotIndex, loadId, bundleName, submitted,
                                            juce::String(preparationDiagnostic));
         });
+}
+
+void MainComponent::openInstrumentPreset()
+{
+    const auto initialFile = instrumentPresetFile.existsAsFile()
+        ? instrumentPresetFile
+        : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    instrumentPresetFileChooser = std::make_unique<juce::FileChooser>(
+        "Open Fishpond Instruments", initialFile, "*.fpi");
+    instrumentPresetFileChooser->launchAsync(juce::FileBrowserComponent::openMode
+                                                 | juce::FileBrowserComponent::canSelectFiles,
+        [this] (const juce::FileChooser& chooser) {
+            const auto file = chooser.getResult();
+            instrumentPresetFileChooser.reset();
+            if (file != juce::File())
+                loadInstrumentPresetFrom(file);
+        });
+}
+
+void MainComponent::saveInstrumentPreset()
+{
+    if (instrumentPresetFile.existsAsFile())
+        saveInstrumentPresetTo(instrumentPresetFile);
+    else
+        saveInstrumentPresetAs();
+}
+
+void MainComponent::saveInstrumentPresetAs()
+{
+    const auto initialFile = instrumentPresetFile.existsAsFile()
+        ? instrumentPresetFile
+        : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+              .getChildFile("Fishpond Instruments.fpi");
+    instrumentPresetFileChooser = std::make_unique<juce::FileChooser>(
+        "Save Fishpond Instruments", initialFile, "*.fpi");
+    instrumentPresetFileChooser->launchAsync(juce::FileBrowserComponent::saveMode
+                                                 | juce::FileBrowserComponent::canSelectFiles
+                                                 | juce::FileBrowserComponent::warnAboutOverwriting,
+        [this] (const juce::FileChooser& chooser) {
+            auto file = chooser.getResult();
+            instrumentPresetFileChooser.reset();
+            if (file != juce::File())
+                saveInstrumentPresetTo(file);
+        });
+}
+
+void MainComponent::saveInstrumentPresetTo(juce::File file)
+{
+    if (! file.hasFileExtension("fpi"))
+        file = file.withFileExtension(".fpi");
+
+    juce::Array<juce::var> slots;
+    for (auto& slot : instrumentSlots) {
+        auto entry = juce::var(new juce::DynamicObject());
+        auto* object = entry.getDynamicObject();
+        object->setProperty("channelName", slot.channelName.getText());
+        object->setProperty("bundlePath", slot.bundleFile.getFullPathName());
+
+        auto state = slot.savedPluginState;
+        if (slot.instrument != nullptr && slot.instrument->state() == fishpond::SingleChannelState::ready) {
+            if (auto* processor = slot.instrument->activeProcessorForEditor()) {
+                juce::MemoryBlock currentState;
+                processor->getStateInformation(currentState);
+                if (currentState.getSize() > 0)
+                    state = std::move(currentState);
+            }
+        }
+        object->setProperty("pluginState", state.toBase64Encoding());
+        slot.savedPluginState = state;
+        slots.add(entry);
+    }
+
+    auto preset = juce::var(new juce::DynamicObject());
+    auto* object = preset.getDynamicObject();
+    object->setProperty("format", "Fishpond Instruments");
+    object->setProperty("version", 1);
+    object->setProperty("slots", juce::var(slots));
+    if (! file.replaceWithText(juce::JSON::toString(preset, true))) {
+        instrumentsPanel.setText("Could not save instrument setup: " + file.getFileName(), juce::dontSendNotification);
+        return;
+    }
+    instrumentPresetFile = file;
+    instrumentsPanel.setText("Saved instrument setup: " + file.getFileName(), juce::dontSendNotification);
+}
+
+void MainComponent::loadInstrumentPresetFrom(const juce::File& file)
+{
+    juce::var preset;
+    const auto parseResult = juce::JSON::parse(file.loadFileAsString(), preset);
+    const auto* presetObject = preset.getDynamicObject();
+    if (parseResult.failed() || presetObject == nullptr
+        || presetObject->getProperty("format").toString() != "Fishpond Instruments") {
+        instrumentsPanel.setText("Could not read Fishpond instrument setup: " + file.getFileName(), juce::dontSendNotification);
+        return;
+    }
+
+    const auto slotData = presetObject->getProperty("slots");
+    const auto* entries = slotData.getArray();
+    if (entries == nullptr || entries->size() != static_cast<int>(instrumentSlotCount)) {
+        instrumentsPanel.setText("Instrument setup must contain four slots", juce::dontSendNotification);
+        return;
+    }
+
+    instrumentPresetFile = file;
+    for (int index = 0; index < entries->size(); ++index) {
+        auto& slot = instrumentSlots[static_cast<std::size_t>(index)];
+        const auto& entry = entries->getReference(index);
+        const auto* entryObject = entry.getDynamicObject();
+        if (entryObject == nullptr)
+            continue;
+        const auto channelName = entryObject->getProperty("channelName").toString().trim();
+        if (channelName.isNotEmpty()) {
+            slot.channelName.setText(channelName, juce::dontSendNotification);
+            if (! channels.rename(slot.channelId, channelName.toStdString())) {
+                instrumentsPanel.setText("Could not restore duplicate/invalid channel name: " + channelName,
+                                         juce::dontSendNotification);
+                continue;
+            }
+        }
+
+        const juce::File bundle(entryObject->getProperty("bundlePath").toString());
+        if (bundle == juce::File())
+            continue;
+        if (! bundle.exists()) {
+            instrumentsPanel.setText("VST3 not found: " + bundle.getFullPathName(), juce::dontSendNotification);
+            continue;
+        }
+
+        juce::MemoryBlock pluginState;
+        const auto encodedState = entryObject->getProperty("pluginState").toString();
+        if (encodedState.isNotEmpty() && ! pluginState.fromBase64Encoding(encodedState)) {
+            instrumentsPanel.setText("Invalid plugin state for slot " + juce::String(index + 1),
+                                     juce::dontSendNotification);
+            continue;
+        }
+        loadInstrumentBundle(static_cast<std::size_t>(index), bundle, pluginState);
+    }
 }
 
 void MainComponent::finishInstrumentLoad(std::size_t slotIndex, std::uint64_t loadId,
@@ -923,18 +1108,27 @@ fishpond::AssistantSessionContext MainComponent::assistantSessionContext() const
 
 void MainComponent::updateAssistantProviderFields()
 {
-    const auto isOllama = assistantProvider.getSelectedId() == 2;
-    const auto provider = isOllama ? fishpond::AssistantProvider::ollama : fishpond::AssistantProvider::openAI;
+    const auto selectedProvider = assistantProvider.getSelectedId();
+    const auto isOllama = selectedProvider == 2;
+    const auto isLocalResponses = selectedProvider == 3;
+    const auto provider = isOllama ? fishpond::AssistantProvider::ollama
+        : isLocalResponses ? fishpond::AssistantProvider::localResponses
+        : fishpond::AssistantProvider::openAI;
     assistantEndpoint.setText(fishpond::AssistantGateway::defaultEndpoint(provider), juce::dontSendNotification);
     assistantModel.setText(fishpond::AssistantGateway::defaultModel(provider), juce::dontSendNotification);
     assistantModel.setVisible(! isOllama);
     assistantModelChoices.setVisible(isOllama);
     assistantRefreshModelsButton.setVisible(isOllama);
-    assistantApiKey.setEnabled(! isOllama);
-    assistantApiKeyLabel.setEnabled(! isOllama);
+    assistantApiKey.setEnabled(! isOllama && ! isLocalResponses);
+    assistantApiKeyLabel.setEnabled(! isOllama && ! isLocalResponses);
+    assistantApiKey.setTextToShowWhenEmpty(isLocalResponses
+        ? "Not required for Codex Bridge"
+        : "Uses FISHPOND_OPENAI_API_KEY or OPENAI_API_KEY when blank", juce::Colours::grey);
     if (isOllama) {
         assistantApiKey.setText({}, juce::dontSendNotification);
         requestOllamaModels();
+    } else if (isLocalResponses) {
+        assistantApiKey.setText({}, juce::dontSendNotification);
     }
     resized();
 }
@@ -982,9 +1176,11 @@ void MainComponent::requestAssistantSuggestion()
     if (assistantRequestInFlight || assistantPrompt.getText().trim().isEmpty())
         return;
     const auto submittedPrompt = assistantPrompt.getText().trim();
+    const auto conversationHistory = assistantConversation->recentHistory();
 
-    const auto provider = assistantProvider.getSelectedId() == 2
-        ? fishpond::AssistantProvider::ollama
+    const auto selectedProvider = assistantProvider.getSelectedId();
+    const auto provider = selectedProvider == 2 ? fishpond::AssistantProvider::ollama
+        : selectedProvider == 3 ? fishpond::AssistantProvider::localResponses
         : fishpond::AssistantProvider::openAI;
     fishpond::AssistantGatewayConfig config { provider, assistantEndpoint.getText(), assistantModel.getText(),
                                               assistantApiKey.getText() };
@@ -1000,7 +1196,7 @@ void MainComponent::requestAssistantSuggestion()
     assistantStatus.setTooltip({});
 
     const juce::Component::SafePointer<MainComponent> safeThis(this);
-    assistantGateway.requestAsync(std::move(config), assistantSessionContext(), submittedPrompt,
+    assistantGateway.requestAsync(std::move(config), assistantSessionContext(), conversationHistory, submittedPrompt,
         [safeThis, submittedPrompt] (fishpond::AssistantSuggestion suggestion) {
             if (safeThis == nullptr)
                 return;

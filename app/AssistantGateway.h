@@ -11,6 +11,7 @@ namespace fishpond {
 enum class AssistantProvider {
     openAI,
     ollama,
+    localResponses,
 };
 
 struct AssistantGatewayConfig {
@@ -30,6 +31,11 @@ struct AssistantSessionContext {
     juce::String summary;
 };
 
+struct AssistantChatTurn {
+    juce::String role;
+    juce::String content;
+};
+
 struct AssistantSuggestion {
     bool succeeded {};
     juce::String code;
@@ -45,6 +51,7 @@ public:
     using OllamaModelsCompletion = std::function<void(std::vector<juce::String>, juce::String diagnostic)>;
 
     void requestAsync(AssistantGatewayConfig config, AssistantSessionContext context,
+                      std::vector<AssistantChatTurn> conversationHistory,
                       juce::String musicalIntent, Completion completion) const;
     void listOllamaModelsAsync(juce::String generateEndpoint, OllamaModelsCompletion completion) const;
 
@@ -54,6 +61,7 @@ public:
 private:
     static AssistantSuggestion request(const AssistantGatewayConfig& config,
                                        const AssistantSessionContext& context,
+                                       const std::vector<AssistantChatTurn>& conversationHistory,
                                        const juce::String& musicalIntent);
     static std::vector<juce::String> listOllamaModels(const juce::String& generateEndpoint,
                                                        juce::String& diagnostic);

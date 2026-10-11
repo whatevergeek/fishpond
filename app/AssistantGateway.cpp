@@ -23,15 +23,22 @@ juce::String requestInstructions(const AssistantSessionContext& context)
     for (const auto& target : context.readyTargets)
         targets.add("\"" + target + "\"");
 
-    return "You are Fishpond's live-coding assistant. Produce one concise, playable Fishpond "
-           "Python snippet for the musician's request. Return JSON with exactly two string fields: "
-           "code and explanation. Code must use only the documented Fishpond surface: a named player "
-           "such as Pa through Pz, n(notes, target=..., p=..., dur=...), clock.bpm, master.volume, "
-           "silence(), and panic(). Notes use names such as C3, rests use ., and braces make chords. "
+    return "You are Fishpond's live-coding assistant. Produce concise Fishpond Python source that "
+           "matches the musician's request: playable patterns for musical requests and valid control "
+           "statements for stop/control requests. Return JSON with exactly two string fields: code and explanation. "
+           "Use only documented Fishpond syntax: named players Pa through Pz; n(notes, target=..., p=..., dur=...); "
+           "player.stop() to stop one player; silence() to stop all players; panic() for emergency clearing; "
+           "clock.bpm and master.volume. Notes use names such as C3, rests use ., and braces make chords. "
+           "For a per-player stop request, inspect non-comment player pattern assignments in the current Live Coding buffer "
+           "and the scheduler snapshot. Emit one standalone `Pname.stop()` line for each distinct relevant player, "
+           "including editor-defined players even if playback is currently stopped; ignore repeated assignments, "
+           "comments, and existing stop lines. Do not substitute silence() when the musician asks for individual stops. "
+           "Use silence() only when asked to stop all players, and panic() only for an explicit emergency stop. "
+           "If no player names can be identified, ask which players to stop instead of inventing names. "
            "Assign each player only once in a suggestion: another assignment replaces its pattern. "
            "For sequential notes, put space-separated notes inside one n() string; braces mean simultaneous notes. "
            "Use distinct player names for independent simultaneous patterns. "
-           "Use only a ready target from this application context: [" + targets.joinIntoString(", ") + "]. "
+           "For every n() pattern statement, use only a ready target from this application context: [" + targets.joinIntoString(", ") + "]. "
            "The current tempo is " + juce::String(context.tempoBpm, 0) + " BPM. "
            "Editor focus snapshot:\n" + context.editorContext + "\n"
            "Playback snapshot:\n" + context.playbackContext + "\n"
@@ -44,14 +51,15 @@ juce::String requestInstructions(const AssistantSessionContext& context)
            "If the scheduler says Playing: none, do not claim the source is currently sounding; it can still be used as the requested written progression. "
            "Preserve other active players by omitting them from the snippet, not by reassigning them. "
            "Return only the requested changed patterns, not a copy of the entire editor. "
-           "Do not copy silence() or panic() from context into a musical suggestion unless the user requests a stop. "
+           "Do not copy silence(), panic(), or existing player.stop() lines from context unless they match the request. "
            "Queued patterns are not active yet. "
            "The current Live Coding buffer is:\n```python\n" + context.liveCode + "\n```\n"
            "The most recent evaluator output is:\n```text\n" + context.diagnostics + "\n```\n"
            "If the musician asks for help fixing code, use that buffer and diagnostic to return the smallest useful corrected snippet. "
            "Before responding, review the snippet as Fishpond source: return source code only in the code field, "
-           "never a JSON object or Markdown fence; balance quotes, parentheses, and braces; and use target= with "
-           "one of the ready targets. "
+           "never a JSON object or Markdown fence; balance quotes, parentheses, and braces. Pattern statements "
+           "must use target= with one of the ready targets; control-only statements such as Pname.stop(), "
+           "silence(), and panic() do not need a target. "
            "The application will insert the code only if the musician chooses Insert; never say that "
            "you evaluated code, loaded a plugin, saved a file, or changed audio settings.";
 }
@@ -144,7 +152,13 @@ juce::String fencedCodeFromProviderText(const juce::String& text)
 bool looksLikeFishpondCode(const juce::String& text)
 {
     return text.contains(">>") || text.contains("silence(") || text.contains("panic(")
-        || text.contains("clock.bpm") || text.contains("master.volume");
+        || text.contains(".stop()") || text.contains("clock.bpm") || text.contains("master.volume");
+}
+
+bool isPlayerControlIntent(const juce::String& text)
+{
+    static const std::regex controlIntent(R"(\b(stop|silence|panic)\b)", std::regex::icase);
+    return std::regex_search(text.toStdString(), controlIntent);
 }
 
 juce::String reviewFishpondCode(const juce::String& code)
@@ -295,26 +309,41 @@ juce::String ollamaTagsEndpoint(const juce::String& generateEndpoint)
     return generateEndpoint.substring(0, apiPosition) + "/api/tags";
 }
 
+bool usesResponsesAPI(const AssistantProvider provider)
+{
+    return provider != AssistantProvider::ollama;
+}
+
 } // namespace
 
 juce::String AssistantGateway::defaultEndpoint(const AssistantProvider provider)
 {
-    return provider == AssistantProvider::openAI
-        ? "https://api.openai.com/v1/responses"
-        : "http://127.0.0.1:11434/api/generate";
+    switch (provider) {
+        case AssistantProvider::openAI: return "https://api.openai.com/v1/responses";
+        case AssistantProvider::ollama: return "http://127.0.0.1:11434/api/generate";
+        case AssistantProvider::localResponses: return "http://127.0.0.1:8787/v1/responses";
+    }
+    return {};
 }
 
 juce::String AssistantGateway::defaultModel(const AssistantProvider provider)
 {
-    return provider == AssistantProvider::openAI ? juce::String("gpt-6-astra") : juce::String();
+    switch (provider) {
+        case AssistantProvider::openAI: return "gpt-6-astra";
+        case AssistantProvider::ollama: return {};
+        case AssistantProvider::localResponses: return "codex-local";
+    }
+    return {};
 }
 
 void AssistantGateway::requestAsync(AssistantGatewayConfig config, AssistantSessionContext context,
+                                    std::vector<AssistantChatTurn> conversationHistory,
                                     juce::String musicalIntent, Completion completion) const
 {
-    std::thread([config = std::move(config), context = std::move(context), musicalIntent = std::move(musicalIntent),
+    std::thread([config = std::move(config), context = std::move(context),
+                 conversationHistory = std::move(conversationHistory), musicalIntent = std::move(musicalIntent),
                  completion = std::move(completion)] () mutable {
-        const auto suggestion = request(config, context, musicalIntent);
+        const auto suggestion = request(config, context, conversationHistory, musicalIntent);
         juce::MessageManager::callAsync([completion = std::move(completion), suggestion] {
             completion(suggestion);
         });
@@ -376,16 +405,19 @@ std::vector<juce::String> AssistantGateway::listOllamaModels(const juce::String&
 
 AssistantSuggestion AssistantGateway::request(const AssistantGatewayConfig& config,
                                               const AssistantSessionContext& context,
+                                              const std::vector<AssistantChatTurn>& conversationHistory,
                                               const juce::String& musicalIntent)
 {
     if (musicalIntent.trim().isEmpty())
         return failed("FP_ASSISTANT_PROMPT_REQUIRED: describe the musical idea you want to make");
-    if (context.readyTargets.empty())
+    if (context.readyTargets.empty() && ! isPlayerControlIntent(musicalIntent))
         return failed("FP_ASSISTANT_TARGET_REQUIRED: load an instrument before generating code");
     if (config.endpoint.trim().isEmpty() || config.model.trim().isEmpty())
         return failed("FP_ASSISTANT_CONFIG_REQUIRED: set an endpoint and model");
 
     auto apiKey = config.apiKey.trim();
+    if (config.provider == AssistantProvider::localResponses)
+        apiKey.clear();
     if (config.provider == AssistantProvider::openAI && apiKey.isEmpty()) {
         apiKey = juce::SystemStats::getEnvironmentVariable("FISHPOND_OPENAI_API_KEY", {});
         if (apiKey.isEmpty())
@@ -399,9 +431,19 @@ AssistantSuggestion AssistantGateway::request(const AssistantGatewayConfig& conf
     auto* requestObject = objectFor(body);
     requestObject->setProperty("model", config.model.trim());
 
-    if (config.provider == AssistantProvider::openAI) {
+    if (usesResponsesAPI(config.provider)) {
         requestObject->setProperty("instructions", instructions);
-        requestObject->setProperty("input", musicalIntent.trim());
+        juce::Array<juce::var> input;
+        const auto appendMessage = [&input] (const juce::String& role, const juce::String& content) {
+            auto message = makeObject();
+            objectFor(message)->setProperty("role", role);
+            objectFor(message)->setProperty("content", content);
+            input.add(message);
+        };
+        for (const auto& turn : conversationHistory)
+            appendMessage(turn.role, turn.content);
+        appendMessage("user", musicalIntent.trim());
+        requestObject->setProperty("input", juce::var(input));
         requestObject->setProperty("store", false);
 
         auto format = makeObject();
@@ -414,14 +456,21 @@ AssistantSuggestion AssistantGateway::request(const AssistantGatewayConfig& conf
         objectFor(text)->setProperty("format", format);
         requestObject->setProperty("text", text);
     } else {
-        requestObject->setProperty("prompt", instructions + "\n\nMusician request: " + musicalIntent.trim());
+        juce::String conversation;
+        for (const auto& turn : conversationHistory)
+            conversation += turn.role.toUpperCase() + ":\n" + turn.content + "\n\n";
+        const auto historySection = conversation.isEmpty()
+            ? juce::String()
+            : "\n\nRecent conversation for follow-up context:\n" + conversation.trimEnd();
+        requestObject->setProperty("prompt", instructions + historySection
+                                   + "\n\nCurrent musician request:\n" + musicalIntent.trim());
         requestObject->setProperty("stream", false);
         requestObject->setProperty("think", false);
         requestObject->setProperty("format", suggestionSchema());
     }
 
     auto headers = juce::String("Content-Type: application/json\r\n");
-    if (! apiKey.isEmpty())
+    if (! apiKey.isEmpty() && config.provider != AssistantProvider::localResponses)
         headers += "Authorization: Bearer " + apiKey + "\r\n";
 
     int statusCode {};
@@ -445,7 +494,7 @@ AssistantSuggestion AssistantGateway::request(const AssistantGatewayConfig& conf
     }
 
     const auto response = juce::JSON::parse(responseText);
-    const auto suggestionText = config.provider == AssistantProvider::openAI
+    const auto suggestionText = usesResponsesAPI(config.provider)
         ? extractOpenAIText(response)
         : response.getDynamicObject() != nullptr ? response.getDynamicObject()->getProperty("response").toString() : juce::String();
     if (suggestionText.isEmpty())
@@ -455,7 +504,7 @@ AssistantSuggestion AssistantGateway::request(const AssistantGatewayConfig& conf
         && (suggestion.diagnostic.startsWith("FP_ASSISTANT_REVIEW_FAILED:")
             || suggestion.diagnostic.startsWith("FP_ASSISTANT_RESPONSE_INVALID:"))
         && ! musicalIntent.contains("[Fishpond review retry]")) {
-        return request(config, context, musicalIntent
+        return request(config, context, conversationHistory, musicalIntent
                        + "\n\n[Fishpond review retry] Your previous suggestion was rejected: "
                        + suggestion.diagnostic
                        + ". Return one corrected Fishpond source snippet with balanced syntax."

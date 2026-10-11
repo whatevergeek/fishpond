@@ -35,6 +35,9 @@ public:
     void openLiveCodingFile();
     void saveLiveCodingFile();
     void saveLiveCodingFileAs();
+    void openInstrumentPreset();
+    void saveInstrumentPreset();
+    void saveInstrumentPresetAs();
     void clearOutput();
 
 private:
@@ -49,6 +52,8 @@ private:
         std::atomic<std::uint64_t> committedLoadId {};
         std::atomic<std::uint64_t> rejectedLoadId {};
         juce::String pendingBundleName;
+        juce::File bundleFile;
+        juce::MemoryBlock savedPluginState;
         juce::TextButton chooseButton;
         juce::TextButton openEditorButton;
         juce::TextEditor channelName;
@@ -59,7 +64,10 @@ private:
 
     void executeEditorText(const juce::String& source);
     void chooseInstrument(std::size_t slotIndex);
-    void loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle);
+    void loadInstrumentBundle(std::size_t slotIndex, const juce::File& bundle,
+                              const juce::MemoryBlock& pluginState = {});
+    void loadInstrumentPresetFrom(const juce::File& file);
+    void saveInstrumentPresetTo(juce::File file);
     void finishInstrumentLoad(std::size_t slotIndex, std::uint64_t loadId,
                               const juce::String& bundleName, bool submitted,
                               const juce::String& diagnostic);
@@ -120,6 +128,8 @@ private:
     LiveCodingEditor liveCodingEditor { liveCodingDocument, liveCodingTokeniser };
     juce::File liveCodingFile;
     std::unique_ptr<juce::FileChooser> liveCodingFileChooser;
+    juce::File instrumentPresetFile;
+    std::unique_ptr<juce::FileChooser> instrumentPresetFileChooser;
     juce::TextEditor diagnostics;
     juce::Label instrumentsPanel;
     fishpond::AssistantGateway assistantGateway;

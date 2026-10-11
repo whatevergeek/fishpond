@@ -41,6 +41,9 @@ private:
             openFile,
             saveFile,
             saveFileAs,
+            openInstrumentPreset,
+            saveInstrumentPreset,
+            saveInstrumentPresetAs,
             clearOutput,
             toggleFullScreen
         };
@@ -81,6 +84,10 @@ private:
             menu.addSeparator();
             addFileItem(saveFile, "Save", juce::KeyPress('s', command, 0));
             addFileItem(saveFileAs, "Save As...", juce::KeyPress('s', command | juce::ModifierKeys::shiftModifier, 0));
+            menu.addSeparator();
+            menu.addItem(openInstrumentPreset, "Open Instruments...");
+            menu.addItem(saveInstrumentPreset, "Save Instruments");
+            menu.addItem(saveInstrumentPresetAs, "Save Instruments As...");
             return menu;
         }
 
@@ -98,6 +105,9 @@ private:
                 case openFile: editor->openLiveCodingFile(); break;
                 case saveFile: editor->saveLiveCodingFile(); break;
                 case saveFileAs: editor->saveLiveCodingFileAs(); break;
+                case openInstrumentPreset: editor->openInstrumentPreset(); break;
+                case saveInstrumentPreset: editor->saveInstrumentPreset(); break;
+                case saveInstrumentPresetAs: editor->saveInstrumentPresetAs(); break;
                 case clearOutput: editor->clearOutput(); break;
                 default: break;
             }
