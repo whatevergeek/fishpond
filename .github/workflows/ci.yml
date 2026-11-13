@@ -164,8 +164,11 @@ jobs:
 
       # find_package(Python3 3.12.13 EXACT) needs exactly this version, and
       # python.org ships no 3.12.13 Windows installer (source-only security
-      # release), so build it from source with PCbuild and stage a standard
-      # dev layout with PCbuild/layout (cached afterwards).
+      # release), so build it from source with PCbuild. 3.12 has no
+      # PCbuild/layout helper (added in 3.13), so stage the standard dev
+      # layout find_package expects by hand: include/ (+ PC/pyconfig.h),
+      # libs/python312.lib, and python.exe + python312.dll + Lib/ at the root
+      # (cached afterwards).
       - name: Build CPython ${{ env.CPYTHON_VERSION }}
         if: steps.cache-cpython.outputs.cache-hit != 'true'
         run: |
@@ -173,7 +176,14 @@ jobs:
           tar xzf "Python-${CPYTHON_VERSION}.tgz"
           cd "Python-${CPYTHON_VERSION}"
           ./PCbuild/build.bat -e -p x64 -c Release
-          ./PCbuild/amd64/python.exe ./PCbuild/layout --preset-default --copy "$HOME/cpython-${CPYTHON_VERSION}" --include-dev
+          PYROOT="$HOME/cpython-${CPYTHON_VERSION}"
+          mkdir -p "$PYROOT/include" "$PYROOT/libs"
+          cp -r Include/. "$PYROOT/include/"
+          cp PC/pyconfig.h "$PYROOT/include/"
+          cp PCbuild/amd64/python312.lib "$PYROOT/libs/"
+          cp PCbuild/amd64/python312.dll PCbuild/amd64/python.exe "$PYROOT/"
+          cp -r Lib "$PYROOT/Lib"
+          "$PYROOT/python.exe" --version
 
       - name: Configure desktop app
         run: >-
