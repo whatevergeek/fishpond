@@ -3,9 +3,9 @@ name: CI
 # Cross-platform CI: development contract, desktop app build, and JUCE spike
 # tests on Linux and macOS. The desktop app is experimental on Linux.
 #
-# Note: on Linux, only the lifecycle spike runs below. The single-channel and
-# graph-handoff host spikes do not link on Linux until the CURL linkage fix
-# (PR #1) lands; on macOS all three spikes run today.
+# All three JUCE spikes (lifecycle, single-channel host, graph-handoff host)
+# run on both Linux and macOS; the Linux host spikes were enabled once the
+# CURL linkage fix (PR #1) landed.
 
 on:
   push:
@@ -84,11 +84,10 @@ jobs:
       - name: Run JUCE lifecycle spike
         run: cmake --build build/app-linux --target run-juce-lifecycle-spike
 
-      # Requires the CURL linkage fix (PR #1); enable once it lands.
-      # - name: Run host spikes
-      #   run: |
-      #     cmake --build build/app-linux --target run-single-channel-host-spike
-      #     cmake --build build/app-linux --target run-graph-handoff-host-spike
+      - name: Run host spikes
+        run: |
+          cmake --build build/app-linux --target run-single-channel-host-spike
+          cmake --build build/app-linux --target run-graph-handoff-host-spike
 
   macos:
     name: macOS 15
