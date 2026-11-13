@@ -190,13 +190,16 @@ jobs:
           cmake --preset app-windows
           -DPython3_ROOT_DIR="$HOME/cpython-${CPYTHON_VERSION}"
 
+      # Release config throughout: the staged CPython is a Release build, and
+      # linking Debug would demand python312_d.lib, which a Release-only
+      # CPython build does not provide.
       - name: Build FishpondApp
-        run: cmake --build --preset app-windows --target FishpondApp --config Debug --parallel
+        run: cmake --build --preset app-windows --target FishpondApp --config Release --parallel
 
       # Same headless spikes as the other platforms; the GUI app itself needs
       # a display and audio device, so CI does not launch it.
       - name: Run spike tests
         run: |
-          cmake --build --preset app-windows --target run-juce-lifecycle-spike
-          cmake --build --preset app-windows --target run-single-channel-host-spike
-          cmake --build --preset app-windows --target run-graph-handoff-host-spike
+          cmake --build --preset app-windows --target run-juce-lifecycle-spike --config Release
+          cmake --build --preset app-windows --target run-single-channel-host-spike --config Release
+          cmake --build --preset app-windows --target run-graph-handoff-host-spike --config Release
