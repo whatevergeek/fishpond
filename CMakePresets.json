@@ -154,6 +154,26 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       }
+    },
+    {
+      "name": "app-windows",
+      "displayName": "Fishpond desktop app (Windows, experimental)",
+      "inherits": "base",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "FISHPOND_FETCH_JUCE": "ON",
+        "FISHPOND_BUILD_JUCE_FIXTURES": "ON",
+        "FISHPOND_BUILD_APP": "ON",
+        "FISHPOND_ENABLE_EMBEDDED_PYTHON": "ON",
+        "BUILD_TESTING": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
     }
   ],
   "buildPresets": [
@@ -192,6 +212,10 @@
     {
       "name": "dev-linux",
       "configurePreset": "dev-linux"
+    },
+    {
+      "name": "app-windows",
+      "configurePreset": "app-windows"
     }
   ],
   "testPresets": [
