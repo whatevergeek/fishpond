@@ -1,0 +1,177 @@
+name: Release
+
+# Tag-triggered release pipeline: pushing a v* tag builds the Fishpond desktop
+# app on macOS and Linux and attaches the packaged artifacts to a GitHub
+# release. `workflow_dispatch` runs the same builds and uploads the artifacts
+# without creating a release, so packaging changes can be tested before a tag
+# is cut.
+#
+# Windows is intentionally not covered yet: there is no validated Windows app
+# build (no app-windows preset), matching the README's platform status.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label for artifact names (no tag or release is created)'
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: write # gh release create
+
+env:
+  CPYTHON_VERSION: '3.12.13'
+  VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+
+jobs:
+  macos:
+    name: macOS 15
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Framework layout (`--enable-framework`) because the release bundle
+      # ships Python.framework inside Fishpond.app, unlike the plain unix
+      # build in ci.yml. Same openssl@3 pin as ci.yml: the macos-15 image
+      # ships openssl@4, whose opaque ASN1 types break CPython 3.12's _ssl.
+      - name: Cache CPython ${{ env.CPYTHON_VERSION }} (framework build)
+        id: cache-cpython
+        uses: actions/cache@v4
+        with:
+          path: ~/cpython-${{ env.CPYTHON_VERSION }}-framework
+          key: cpython-${{ env.CPYTHON_VERSION }}-macos15-arm64-framework
+
+      - name: Build CPython ${{ env.CPYTHON_VERSION }} (framework)
+        if: steps.cache-cpython.outputs.cache-hit != 'true'
+        run: |
+          brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+          curl -sSLO "https://www.python.org/ftp/python/${CPYTHON_VERSION}/Python-${CPYTHON_VERSION}.tgz"
+          tar xzf "Python-${CPYTHON_VERSION}.tgz"
+          cd "Python-${CPYTHON_VERSION}"
+          ./configure --prefix="$HOME/cpython-${CPYTHON_VERSION}-framework" \
+            --enable-framework="$HOME/cpython-${CPYTHON_VERSION}-framework/Frameworks" \
+            --without-ensurepip \
+            --with-openssl="$(brew --prefix openssl@3)"
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+
+      - name: Configure desktop app
+        run: >-
+          cmake --preset app-macos
+          -DPython3_ROOT_DIR="$HOME/cpython-${CPYTHON_VERSION}-framework"
+          -DPython3_EXECUTABLE="$HOME/cpython-${CPYTHON_VERSION}-framework/Frameworks/Python.framework/Versions/3.12/bin/python3.12"
+
+      - name: Build FishpondApp (Release)
+        run: cmake --build --preset app-macos --config Release --target FishpondApp
+
+      - name: Package Fishpond.app
+        run: >-
+          ./scripts/package_macos_release.sh
+          build/app-macos
+          "${VERSION#v}"
+          "$HOME/cpython-${CPYTHON_VERSION}-framework/Frameworks/Python.framework"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fishpond-macos
+          path: dist/Fishpond-macos-*.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux (Ubuntu 24.04, experimental)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          ninja-build
+          libasound2-dev libcurl4-openssl-dev libfreetype6-dev libgl1-mesa-dev
+          libfontconfig1-dev libharfbuzz-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+          libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev
+          libxi-dev libxrandr-dev libxrender-dev
+
+      # Identical configure flags to ci.yml, so both workflows share the cache.
+      - name: Cache CPython ${{ env.CPYTHON_VERSION }}
+        id: cache-cpython
+        uses: actions/cache@v4
+        with:
+          path: ~/cpython-${{ env.CPYTHON_VERSION }}
+          key: cpython-${{ env.CPYTHON_VERSION }}-linux-x64
+
+      - name: Build CPython ${{ env.CPYTHON_VERSION }}
+        if: steps.cache-cpython.outputs.cache-hit != 'true'
+        run: |
+          curl -sSLO "https://www.python.org/ftp/python/${CPYTHON_VERSION}/Python-${CPYTHON_VERSION}.tgz"
+          tar xzf "Python-${CPYTHON_VERSION}.tgz"
+          cd "Python-${CPYTHON_VERSION}"
+          ./configure --prefix="$HOME/cpython-${CPYTHON_VERSION}" --enable-shared --without-ensurepip
+          make -j"$(nproc)"
+          make install
+
+      - name: Configure desktop app
+        run: >-
+          cmake --preset app-linux
+          -DCMAKE_BUILD_TYPE=Release
+          -DPython3_ROOT_DIR="$HOME/cpython-${CPYTHON_VERSION}"
+          -DCMAKE_C_FLAGS="$(pkg-config --cflags webkit2gtk-4.1 gtk+-x11-3.0)"
+          -DCMAKE_CXX_FLAGS="$(pkg-config --cflags webkit2gtk-4.1 gtk+-x11-3.0)"
+
+      - name: Build FishpondApp (Release)
+        run: cmake --build --preset app-linux --target FishpondApp --parallel
+
+      # Bundles the embedded CPython prefix (shared lib + stdlib) with a
+      # launcher that points the runtime at it, so the app runs outside the
+      # CI image. The Linux app is experimental (see README platform status).
+      - name: Package Linux tarball
+        run: |
+          set -euo pipefail
+          ver="${VERSION#v}"
+          staging="dist/Fishpond-linux-x64-${ver}"
+          mkdir -p "$staging"
+          app_bin="$(find build/app-linux/app/FishpondApp_artefacts -type f -name Fishpond | head -1)"
+          test -n "$app_bin"
+          cp "$app_bin" "$staging/Fishpond"
+          cp -a "$HOME/cpython-${CPYTHON_VERSION}" "$staging/python"
+          cat > "$staging/fishpond.sh" <<'LAUNCH'
+          #!/bin/sh
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          export PYTHONHOME="$DIR/python"
+          export LD_LIBRARY_PATH="$DIR/python/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          exec "$DIR/Fishpond" "$@"
+          LAUNCH
+          chmod +x "$staging/fishpond.sh"
+          tar -czf "dist/Fishpond-linux-x64-${ver}.tar.gz" -C dist "Fishpond-linux-x64-${ver}"
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fishpond-linux
+          path: dist/Fishpond-linux-x64-*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [macos, linux]
+    if: github.event_name == 'push' # tag pushes only; workflow_dispatch just builds artifacts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fishpond-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create release with artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release create "${{ github.ref_name }}" dist/*
+          --repo "${{ github.repository }}"
+          --title "${{ github.ref_name }}"
+          --generate-notes
