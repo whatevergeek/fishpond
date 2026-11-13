@@ -91,7 +91,7 @@ jobs:
       #     cmake --build build/app-linux --target run-graph-handoff-host-spike
 
   macos:
-    name: macOS 14
+    name: macOS 15
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -107,17 +107,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/cpython-${{ env.CPYTHON_VERSION }}
-          key: cpython-${{ env.CPYTHON_VERSION }}-macos14-arm64
+          key: cpython-${{ env.CPYTHON_VERSION }}-macos15-arm64
 
       # brew's python@3.12 tracks the newest 3.12.x and python.org ships no
       # 3.12.13 macOS installer, so build the exact version from source.
       - name: Build CPython ${{ env.CPYTHON_VERSION }}
         if: steps.cache-cpython.outputs.cache-hit != 'true'
         run: |
+          # macos-15 ships openssl@4, which CPython 3.12's _ssl module can't
+          # build against; pin the build to openssl@3.
+          brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
           curl -sSLO "https://www.python.org/ftp/python/${CPYTHON_VERSION}/Python-${CPYTHON_VERSION}.tgz"
           tar xzf "Python-${CPYTHON_VERSION}.tgz"
           cd "Python-${CPYTHON_VERSION}"
-          ./configure --prefix="$HOME/cpython-${CPYTHON_VERSION}" --enable-shared --without-ensurepip
+          ./configure --prefix="$HOME/cpython-${CPYTHON_VERSION}" --enable-shared --without-ensurepip \
+            --with-openssl="$(brew --prefix openssl@3)"
           make -j"$(sysctl -n hw.ncpu)"
           make install
 
