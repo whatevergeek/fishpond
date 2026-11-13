@@ -64,6 +64,25 @@
       }
     },
     {
+      "name": "app-linux",
+      "displayName": "Fishpond desktop app (Linux, experimental)",
+      "inherits": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "FISHPOND_FETCH_JUCE": "ON",
+        "FISHPOND_BUILD_JUCE_FIXTURES": "ON",
+        "FISHPOND_BUILD_APP": "ON",
+        "FISHPOND_ENABLE_EMBEDDED_PYTHON": "ON",
+        "BUILD_TESTING": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "python-runtime-macos",
       "displayName": "Embedded Python runtime tests (macOS)",
       "inherits": "base",
@@ -149,6 +168,10 @@
     {
       "name": "app-macos",
       "configurePreset": "app-macos"
+    },
+    {
+      "name": "app-linux",
+      "configurePreset": "app-linux"
     },
     {
       "name": "python-runtime-macos",

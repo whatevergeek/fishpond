@@ -36,11 +36,6 @@ add_executable(fishpond_single_channel_host_spike
 target_include_directories(fishpond_single_channel_host_spike PRIVATE "${PROJECT_SOURCE_DIR}/src")
 target_link_libraries(fishpond_single_channel_host_spike PRIVATE juce::juce_audio_utils)
 
-if(UNIX AND NOT APPLE)
-    find_package(CURL REQUIRED)
-    target_link_libraries(FishpondFixtureInstrument PRIVATE CURL::libcurl)
-    target_link_libraries(fishpond_juce_lifecycle_spike PRIVATE CURL::libcurl)
-endif()
 
 add_custom_target(run-juce-lifecycle-spike
     COMMAND fishpond_juce_lifecycle_spike
@@ -91,3 +86,13 @@ add_custom_target(run-vst3-fixture-load-spike
     DEPENDS fishpond_vst3_fixture_load_spike
     VERBATIM
 )
+# On Linux, juce_core's CURL-backed networking requires every spike executable
+# to link libcurl; without it the link fails with undefined curl_* symbols.
+if(UNIX AND NOT APPLE)
+    find_package(CURL REQUIRED)
+    target_link_libraries(FishpondFixtureInstrument PRIVATE CURL::libcurl)
+    target_link_libraries(fishpond_juce_lifecycle_spike PRIVATE CURL::libcurl)
+    target_link_libraries(fishpond_single_channel_host_spike PRIVATE CURL::libcurl)
+    target_link_libraries(fishpond_graph_handoff_host_spike PRIVATE CURL::libcurl)
+    target_link_libraries(fishpond_vst3_fixture_load_spike PRIVATE CURL::libcurl)
+endif()
