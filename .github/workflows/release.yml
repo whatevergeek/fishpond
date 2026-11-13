@@ -6,8 +6,9 @@ name: Release
 # without creating a release, so packaging changes can be tested before a tag
 # is cut.
 #
-# Windows is intentionally not covered yet: there is no validated Windows app
-# build (no app-windows preset), matching the README's platform status.
+# Windows is covered experimentally, matching the README's platform status:
+# it reuses the from-source CPython staging proven by the Windows job in
+# ci.yml and builds Release config, since the staged CPython is Release-only.
 
 on:
   push:
@@ -155,9 +156,80 @@ jobs:
           path: dist/Fishpond-linux-x64-*.tar.gz
           if-no-files-found: error
 
+  windows:
+    name: Windows (2022, experimental)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Identical build + staging to the Windows job in ci.yml, so both
+      # workflows share the same cache. 3.12 has no PCbuild/layout helper, so
+      # the dev layout find_package(Python3) expects is staged by hand.
+      - name: Cache CPython ${{ env.CPYTHON_VERSION }}
+        id: cache-cpython
+        uses: actions/cache@v4
+        with:
+          path: ~/cpython-${{ env.CPYTHON_VERSION }}
+          key: cpython-${{ env.CPYTHON_VERSION }}-windows-x64
+
+      - name: Build CPython ${{ env.CPYTHON_VERSION }}
+        if: steps.cache-cpython.outputs.cache-hit != 'true'
+        run: |
+          curl -sSLO "https://www.python.org/ftp/python/${CPYTHON_VERSION}/Python-${CPYTHON_VERSION}.tgz"
+          tar xzf "Python-${CPYTHON_VERSION}.tgz"
+          cd "Python-${CPYTHON_VERSION}"
+          ./PCbuild/build.bat -e -p x64 -c Release
+          PYROOT="$HOME/cpython-${CPYTHON_VERSION}"
+          mkdir -p "$PYROOT/include" "$PYROOT/libs"
+          cp -r Include/. "$PYROOT/include/"
+          cp PC/pyconfig.h "$PYROOT/include/"
+          cp PCbuild/amd64/python312.lib "$PYROOT/libs/"
+          cp PCbuild/amd64/python312.dll PCbuild/amd64/python.exe "$PYROOT/"
+          cp -r Lib "$PYROOT/Lib"
+          "$PYROOT/python.exe" --version
+
+      - name: Configure desktop app
+        run: >-
+          cmake --preset app-windows
+          -DPython3_ROOT_DIR="$HOME/cpython-${CPYTHON_VERSION}"
+
+      # Release config throughout: the staged CPython is a Release build, and
+      # linking Debug would demand python312_d.lib, which a Release-only
+      # CPython build does not provide.
+      - name: Build FishpondApp (Release)
+        run: cmake --build --preset app-windows --target FishpondApp --config Release --parallel
+
+      # Embeddable layout next to the exe: python312.dll + Lib/ beside
+      # Fishpond.exe lets CPython's default path config infer home from the
+      # DLL location and find the stdlib, so the app runs without a system
+      # Python. End users still need the MSVC 2015-2022 x64 redistributable,
+      # as with any MSVC-built binary.
+      - name: Package Windows zip
+        run: |
+          set -euo pipefail
+          ver="${VERSION#v}"
+          staging="dist/Fishpond-windows-x64-${ver}"
+          mkdir -p "$staging"
+          app_bin="$(find build/app-windows/app/FishpondApp_artefacts -type f -name Fishpond.exe | head -1)"
+          test -n "$app_bin"
+          cp "$app_bin" "$staging/Fishpond.exe"
+          cp "$HOME/cpython-${CPYTHON_VERSION}/python312.dll" "$staging/"
+          cp -r "$HOME/cpython-${CPYTHON_VERSION}/Lib" "$staging/Lib"
+          (cd dist && powershell -NoProfile -Command "Compress-Archive -Path 'Fishpond-windows-x64-${ver}' -DestinationPath 'Fishpond-windows-x64-${ver}.zip'")
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fishpond-windows
+          path: dist/Fishpond-windows-x64-*.zip
+          if-no-files-found: error
+
   release:
     name: Publish GitHub release
-    needs: [macos, linux]
+    needs: [macos, linux, windows]
     if: github.event_name == 'push' # tag pushes only; workflow_dispatch just builds artifacts
     runs-on: ubuntu-24.04
     steps:
