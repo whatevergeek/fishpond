@@ -1,7 +1,8 @@
 name: CI
 
 # Cross-platform CI: development contract, desktop app build, and JUCE spike
-# tests on Linux and macOS. The desktop app is experimental on Linux.
+# tests on Linux, macOS, and Windows. The desktop app is experimental on
+# Linux and Windows.
 #
 # Note: on Linux, only the lifecycle spike runs below. The single-channel and
 # graph-handoff host spikes do not link on Linux until the CURL linkage fix
@@ -138,3 +139,54 @@ jobs:
           cmake --build --preset app-macos --target run-juce-lifecycle-spike
           cmake --build --preset app-macos --target run-single-channel-host-spike
           cmake --build --preset app-macos --target run-graph-handoff-host-spike
+
+  windows:
+    name: Windows (2022, experimental)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Development contract
+        run: |
+          cmake --preset dev-windows
+          cmake --build --preset dev-windows --parallel
+          ctest --preset p0-build-contract-windows
+
+      - name: Cache CPython ${{ env.CPYTHON_VERSION }}
+        id: cache-cpython
+        uses: actions/cache@v4
+        with:
+          path: ~/cpython-${{ env.CPYTHON_VERSION }}
+          key: cpython-${{ env.CPYTHON_VERSION }}-windows-x64
+
+      # find_package(Python3 3.12.13 EXACT) needs exactly this version, and
+      # python.org ships no 3.12.13 Windows installer (source-only security
+      # release), so build it from source with PCbuild and stage a standard
+      # dev layout with PCbuild/layout (cached afterwards).
+      - name: Build CPython ${{ env.CPYTHON_VERSION }}
+        if: steps.cache-cpython.outputs.cache-hit != 'true'
+        run: |
+          curl -sSLO "https://www.python.org/ftp/python/${CPYTHON_VERSION}/Python-${CPYTHON_VERSION}.tgz"
+          tar xzf "Python-${CPYTHON_VERSION}.tgz"
+          cd "Python-${CPYTHON_VERSION}"
+          ./PCbuild/build.bat -e -p x64 -c Release
+          ./PCbuild/amd64/python.exe ./PCbuild/layout --preset-default --copy "$HOME/cpython-${CPYTHON_VERSION}" --include-dev
+
+      - name: Configure desktop app
+        run: >-
+          cmake --preset app-windows
+          -DPython3_ROOT_DIR="$HOME/cpython-${CPYTHON_VERSION}"
+
+      - name: Build FishpondApp
+        run: cmake --build --preset app-windows --target FishpondApp --config Debug --parallel
+
+      # Same headless spikes as the other platforms; the GUI app itself needs
+      # a display and audio device, so CI does not launch it.
+      - name: Run spike tests
+        run: |
+          cmake --build --preset app-windows --target run-juce-lifecycle-spike
+          cmake --build --preset app-windows --target run-single-channel-host-spike
+          cmake --build --preset app-windows --target run-graph-handoff-host-spike
