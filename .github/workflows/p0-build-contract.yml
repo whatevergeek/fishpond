@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             configure_preset: dev-macos
             test_preset: p0-build-contract-macos
           - os: windows-2022
@@ -46,7 +46,7 @@ jobs:
 
   juce-smoke-macos:
     name: macOS JUCE VST3/AU smoke
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Configure locked JUCE fixture
