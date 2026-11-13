@@ -57,7 +57,10 @@ jobs:
             --without-ensurepip \
             --with-openssl="$(brew --prefix openssl@3)"
           make -j"$(sysctl -n hw.ncpu)"
-          make install
+          # PYTHONAPPSDIR override: framework `make install` otherwise tries to
+          # install Python Launcher.app/IDLE into /Applications/Python 3.12,
+          # which is not writable on the runner. The apps are unused here.
+          make install PYTHONAPPSDIR="$RUNNER_TEMP/pyapps"
 
       - name: Configure desktop app
         run: >-
