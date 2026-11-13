@@ -3,8 +3,10 @@ set -euo pipefail
 
 build_dir="${1:-/private/tmp/fishpond-release-make}"
 version="${2:-0.1.0}"
+# Optional third argument: path to the Python.framework to bundle (defaults to
+# the Homebrew python@3.12 framework; CI passes its own framework build).
 app_path="$build_dir/app/FishpondApp_artefacts/Release/Fishpond.app"
-python_framework="/opt/homebrew/opt/python@3.12/Frameworks/Python.framework"
+python_framework="${3:-/opt/homebrew/opt/python@3.12/Frameworks/Python.framework}"
 release_dir="$PWD/dist"
 staging_dir="$release_dir/Fishpond-macos-$version"
 output_zip="$release_dir/Fishpond-macos-$version.zip"
