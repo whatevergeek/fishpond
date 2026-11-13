@@ -1,0 +1,136 @@
+name: CI
+
+# Cross-platform CI: development contract, desktop app build, and JUCE spike
+# tests on Linux and macOS. The desktop app is experimental on Linux.
+#
+# Note: on Linux, only the lifecycle spike runs below. The single-channel and
+# graph-handoff host spikes do not link on Linux until the CURL linkage fix
+# (PR #1) lands; on macOS all three spikes run today.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CPYTHON_VERSION: '3.12.13'
+
+jobs:
+  linux:
+    name: Linux (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          ninja-build
+          libasound2-dev libcurl4-openssl-dev libfreetype6-dev libgl1-mesa-dev
+          libfontconfig1-dev libharfbuzz-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+          libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev
+          libxi-dev libxrandr-dev libxrender-dev
+
+      - name: Development contract
+        run: |
+          cmake --preset dev-linux
+          cmake --build --preset dev-linux --parallel
+          ctest --preset p0-build-contract-linux
+
+      - name: Cache CPython ${{ env.CPYTHON_VERSION }}
+        id: cache-cpython
+        uses: actions/cache@v4
+        with:
+          path: ~/cpython-${{ env.CPYTHON_VERSION }}
+          key: cpython-${{ env.CPYTHON_VERSION }}-linux-x64
+
+      # find_package(Python3 3.12.13 EXACT) needs exactly this version, which
+      # no distro package provides; build it from source (cached afterwards).
+      - name: Build CPython ${{ env.CPYTHON_VERSION }}
+        if: steps.cache-cpython.outputs.cache-hit != 'true'
+        run: |
+          curl -sSLO "https://www.python.org/ftp/python/${CPYTHON_VERSION}/Python-${CPYTHON_VERSION}.tgz"
+          tar xzf "Python-${CPYTHON_VERSION}.tgz"
+          cd "Python-${CPYTHON_VERSION}"
+          ./configure --prefix="$HOME/cpython-${CPYTHON_VERSION}" --enable-shared --without-ensurepip
+          make -j"$(nproc)"
+          make install
+
+      # Mirrors the app-macos flags for Linux; PKG-config cflags match the
+      # JUCE fixture CI step in p0-build-contract.yml.
+      - name: Configure desktop app
+        run: >-
+          cmake -S . -B build/app-linux -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_TESTING=OFF
+          -DFISHPOND_FETCH_JUCE=ON
+          -DFISHPOND_BUILD_JUCE_FIXTURES=ON
+          -DFISHPOND_BUILD_APP=ON
+          -DFISHPOND_ENABLE_EMBEDDED_PYTHON=ON
+          -DPython3_ROOT_DIR="$HOME/cpython-${CPYTHON_VERSION}"
+          -DCMAKE_C_FLAGS="$(pkg-config --cflags webkit2gtk-4.1 gtk+-x11-3.0)"
+          -DCMAKE_CXX_FLAGS="$(pkg-config --cflags webkit2gtk-4.1 gtk+-x11-3.0)"
+
+      - name: Build FishpondApp
+        run: cmake --build build/app-linux --target FishpondApp --parallel
+
+      # The GUI app itself needs a display and audio device, so CI covers it
+      # with the headless spike executables instead of launching it.
+      - name: Run JUCE lifecycle spike
+        run: cmake --build build/app-linux --target run-juce-lifecycle-spike
+
+      # Requires the CURL linkage fix (PR #1); enable once it lands.
+      # - name: Run host spikes
+      #   run: |
+      #     cmake --build build/app-linux --target run-single-channel-host-spike
+      #     cmake --build build/app-linux --target run-graph-handoff-host-spike
+
+  macos:
+    name: macOS 14
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Development contract
+        run: |
+          cmake --preset dev-macos
+          cmake --build --preset dev-macos --parallel
+          ctest --preset p0-build-contract-macos
+
+      - name: Cache CPython ${{ env.CPYTHON_VERSION }}
+        id: cache-cpython
+        uses: actions/cache@v4
+        with:
+          path: ~/cpython-${{ env.CPYTHON_VERSION }}
+          key: cpython-${{ env.CPYTHON_VERSION }}-macos14-arm64
+
+      # brew's python@3.12 tracks the newest 3.12.x and python.org ships no
+      # 3.12.13 macOS installer, so build the exact version from source.
+      - name: Build CPython ${{ env.CPYTHON_VERSION }}
+        if: steps.cache-cpython.outputs.cache-hit != 'true'
+        run: |
+          curl -sSLO "https://www.python.org/ftp/python/${CPYTHON_VERSION}/Python-${CPYTHON_VERSION}.tgz"
+          tar xzf "Python-${CPYTHON_VERSION}.tgz"
+          cd "Python-${CPYTHON_VERSION}"
+          ./configure --prefix="$HOME/cpython-${CPYTHON_VERSION}" --enable-shared --without-ensurepip
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+
+      - name: Configure desktop app
+        run: >-
+          cmake --preset app-macos
+          -DPython3_ROOT_DIR="$HOME/cpython-${CPYTHON_VERSION}"
+
+      - name: Build FishpondApp
+        run: cmake --build --preset app-macos --target FishpondApp
+
+      - name: Run spike tests
+        run: |
+          cmake --build --preset app-macos --target run-juce-lifecycle-spike
+          cmake --build --preset app-macos --target run-single-channel-host-spike
+          cmake --build --preset app-macos --target run-graph-handoff-host-spike
