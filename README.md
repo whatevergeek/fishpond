@@ -26,15 +26,18 @@ Bring your own instrument plugins; no SuperCollider setup is needed.
 
 ## Platform status
 
-Fishpond has currently been tested and released on **macOS** only.
+Fishpond is tested and released on **macOS**. As of v0.1.0, CI-built downloads
+are also available for **Windows** and **Linux**.
 
-[Download the macOS preview from GitHub Releases](https://github.com/whatevergeek/fishpond/releases).
-The release includes the CPython 3.12 runtime, so users do not need to install
+[Download the latest release from GitHub Releases](https://github.com/whatevergeek/fishpond/releases).
+Each package includes the CPython 3.12 runtime, so users do not need to install
 Python separately.
 
-Linux and Windows are not yet validated or distributed as releases. Users on
-those platforms can build from source, but must test the application, audio
-device, and VST3 workflow in their own environment.
+macOS is the runtime-tested platform. The Windows and Linux packages are
+experimental: they build and package green in CI, but the application, audio
+device, and VST3 workflow have not been runtime-validated on those platforms
+(Windows in particular has not been run outside CI). Test in your own
+environment and report issues.
 
 ## Before you start
 
